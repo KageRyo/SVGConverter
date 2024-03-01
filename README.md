@@ -1,6 +1,6 @@
 # SVGConverter
 
-SVGConverter is a tool that can help you convert image formats to SVG.
+SVGConverter is a tool that can help you convert image formats to SVG. [正體中文](README_TW.md)
 
 ## Features
 
@@ -16,10 +16,10 @@ To use SVGConverter, you need to have Python installed on your system. Clone thi
 git clone https://github.com/kageryo/SVGConverter.git
 ```
 
-Install the required dependencies:
+Install the required library:
 
 ```
-pip install -r requirements.txt
+pip install pillow svgwrite
 ```
 
 ## Usage
