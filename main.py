@@ -1,5 +1,6 @@
-from client import ImageToSVGConverterUI
+from src.client import clientUI
 
+# 進入程式
 if __name__ == "__main__":
-    converter_ui = ImageToSVGConverterUI()
-    converter_ui.run()
+    clientUI = clientUI()
+    clientUI.run()
