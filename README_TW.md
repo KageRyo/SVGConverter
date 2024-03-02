@@ -24,7 +24,7 @@ pip install pillow svgwrite
 
 ## 用法
 
-運行main.py檔案來啟動程式：
+執行 main.py 檔案來啟動程式：
 
 ````
 python main.py
@@ -42,7 +42,7 @@ SVGConverter 支援以下語言：
 
 ## 貢獻
 
-歡迎貢獻！ 如果您發現任何錯誤或有改進建議，請提出問題或提交拉取請求。
+歡迎貢獻！ 如果您發現任何錯誤或有改進建議，歡迎提出 Issues 或 Pull Requests。
 
 ## LICENSE
 
