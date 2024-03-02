@@ -2,16 +2,19 @@
     "zh_TW": {
         "name": "正體中文",
         "select": "選擇資料夾",
+        "comp": "壓縮品質",
         "done": "轉換完成，所有圖片已轉換為SVG！"
     },
     "en_US": {
         "name": "English",
         "select": "Select Folder",
+        "comp": "Compression Quality",
         "done": "Conversion Complete, All images converted to SVG!"
     },
     "ja_JP": {
         "name": "日本語",
         "select": "フォルダを選択",
+        "comp": "圧縮品質",
         "done": "変換完了、すべての画像がSVGに変換されました！"
     }
 }
