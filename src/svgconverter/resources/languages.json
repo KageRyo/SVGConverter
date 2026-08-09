@@ -1,0 +1,17 @@
+{
+  "zh_TW": {
+    "name": "正體中文",
+    "select": "選擇資料夾",
+    "done": "轉換完成：已轉換 {converted} 個檔案；失敗 {failed} 個。"
+  },
+  "en_US": {
+    "name": "English",
+    "select": "Select Folder",
+    "done": "Conversion complete: {converted} converted; {failed} failed."
+  },
+  "ja_JP": {
+    "name": "日本語",
+    "select": "フォルダを選択",
+    "done": "変換完了：{converted} 件変換、{failed} 件失敗。"
+  }
+}

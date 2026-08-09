@@ -1,6 +1,6 @@
-from src.client import clientUI
+"""Compatibility launcher for the SVGConverter desktop application."""
 
-# 進入程式
+from svgconverter.gui import run_gui
+
 if __name__ == "__main__":
-    clientUI = clientUI()
-    clientUI.run()
+    run_gui()
