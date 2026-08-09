@@ -1,49 +1,86 @@
 # SVGConverter
 
-SVGConverter 是一個可以幫助您將影像格式轉換為 SVG 的工具。 [English](README.md)
+[English](README.md)
 
-## 特色
+SVGConverter 會將 PNG 或 JPEG 影像包裝到 SVG 容器中，並提供 Python API、命令列工具與桌面 GUI。
 
-- 將影像轉換為 SVG 格式。
-- 圖形使用者介面 (GUI)，方便互動。
-- 支援多種語言：正體中文、英文、日文。
+> **重要：**目前的 `embed` 模式是把原始點陣影像 Base64 編碼後放進 SVG 的 `<image>`
+> 元素。它**不會**把像素描繪成向量路徑，也不會因為包進 SVG 就自然縮小檔案。真正的
+> `vectorize` 模式會在後續版本另行提供。
 
 ## 安裝
 
-要使用 SVGConverter，您需要在系統上安裝 Python。 將此儲存庫 Clone 到您的電腦：
+SVGConverter 需要 Python 3.10 以上。v1.2.0 發布到 PyPI 後可使用：
 
-````
-git clone https://github.com/kageryo/SVGConverter.git
-````
+```bash
+python -m pip install --upgrade svgconverter
+```
 
-安裝所需的函式庫：
+目前的開發版本可直接安裝：
 
-````
-pip install pillow svgwrite
-````
+```bash
+git clone https://github.com/KageRyo/SVGConverter.git
+cd SVGConverter
+python -m pip install .
+```
 
-## 用法
+## 命令列
 
-執行 main.py 檔案來啟動程式：
+轉換單一檔案：
 
-````
-python main.py
-````
+```bash
+svgconverter image.png
+svgconverter photo.jpg --output output.svg
+```
 
+轉換資料夾最外層的所有支援影像：
 
-選擇包含要轉換的圖像的資料夾，然後從語言選單中選擇所需的語言。
+```bash
+svgconverter ./images --output-dir ./svg-output
+```
 
-## 語言支援
+除非指定 `--overwrite`，既有輸出檔不會被覆寫。使用 `svgconverter --help` 可查看完整選項。
+目前支援 PNG、JPG、JPEG（含大寫副檔名）；遞迴轉換與影像最佳化尚未包含在此版本。
 
-SVGConverter 支援以下語言：
-- 繁體中文（正體中文）
-- 英語
-- 日文（日本語）
+## Python API
 
-## 貢獻
+```python
+from svgconverter import SVGConverter, convert_file
 
-歡迎貢獻！ 如果您發現任何錯誤或有改進建議，歡迎提出 Issues 或 Pull Requests。
+convert_file("image.png", "image.svg")
 
-## LICENSE
+converter = SVGConverter(overwrite=True)
+result = converter.convert_directory("./images", "./svg-output")
+print(result.success_count, result.failure_count)
+```
 
-本程式採用 MIT License 授權 - 有關詳細信息，請參閱 [LICENSE](LICENSE) 文件。
+`convert_file()` 會回傳輸出 `pathlib.Path`。資料夾轉換則回傳 `BatchResult`，其中包含成功檔案與
+逐檔錯誤，單一壞檔不會使整批工作中斷。
+
+## GUI
+
+安裝套件後執行：
+
+```bash
+svgconverter-gui
+```
+
+開發環境仍可用 `python main.py` 啟動相同 GUI。目前 GUI 以資料夾為單位轉換，並支援正體中文、
+English、日文；它與命令列共用同一套公開轉換 API。
+
+## 發布流程
+
+標籤發布使用 [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)，不保存長期
+PyPI API token。第一次發布前，請在 PyPI 設定 pending 或 normal Trusted Publisher：
+
+- owner：`KageRyo`
+- repository：`SVGConverter`
+- workflow：`release.yml`
+- environment：`pypi`
+
+PR 合併後，建立與 `pyproject.toml` 版本一致的註解標籤 `v1.2.0`。工作流程會建置、檢查、發布到
+PyPI，成功後才建立並附上 distributions 的 GitHub Release。
+
+## 貢獻與授權
+
+本機檢查與提交格式請見 [CONTRIBUTING.md](CONTRIBUTING.md)。本專案採用 [MIT License](LICENSE)。
