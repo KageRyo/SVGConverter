@@ -26,7 +26,14 @@ def assert_is_vector_svg(path: Path) -> None:
 
 
 @pytest.mark.parametrize(
-    ("filename", "image_format"), [("logo.png", "PNG"), ("photo.jpg", "JPEG")]
+    ("filename", "image_format"),
+    [
+        ("logo.png", "PNG"),
+        ("photo.jpg", "JPEG"),
+        ("image.webp", "WEBP"),
+        ("image.bmp", "BMP"),
+        ("image.tiff", "TIFF"),
+    ],
 )
 def test_vectorize_file_creates_svg_paths(
     tmp_path: Path, filename: str, image_format: str

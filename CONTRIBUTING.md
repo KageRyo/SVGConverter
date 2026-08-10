@@ -28,7 +28,7 @@ python -m twine check dist/*
 
 ## Scope and changes
 
-SVGConverter has two distinct conversion modes. `embed` stores a PNG or JPEG
+SVGConverter has two distinct conversion modes. `embed` stores a supported
 raster image in an SVG `<image>` element; `vectorize` creates SVG paths. Keep
 their different output, quality, and dependency requirements clear in APIs,
 tests, CLI help, and documentation.

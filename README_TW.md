@@ -2,7 +2,8 @@
 
 [English](README.md)
 
-SVGConverter 可將 PNG、JPEG 影像轉為 SVG，並提供 Python API、命令列工具與桌面 GUI。
+SVGConverter 可將 PNG、JPEG、WebP、BMP、TIFF 影像轉為 SVG，並提供 Python API、
+命令列工具與桌面 GUI。
 
 ## 轉換模式
 
@@ -51,7 +52,8 @@ svgconverter ./images --output-dir ./svg-output
 ```
 
 除非指定 `--overwrite`，既有輸出檔不會被覆寫。使用 `svgconverter --help` 可查看完整選項。
-目前支援 PNG、JPG、JPEG（含大寫副檔名）；遞迴轉換與影像最佳化尚未包含在此版本。
+目前支援 PNG、JPG、JPEG、WebP、BMP、TIF、TIFF（含大寫副檔名）；遞迴轉換與影像最佳化
+尚未包含在此版本。
 `vectorize` 模式需要安裝選用的 `vectorize` extra。
 
 ## Python API

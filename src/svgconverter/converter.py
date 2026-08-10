@@ -20,8 +20,16 @@ VectorizeColorMode = Literal["color", "binary"]
 VectorizeHierarchy = Literal["stacked", "cutout"]
 VectorizeCurveMode = Literal["pixel", "polygon", "spline"]
 
-_SUPPORTED_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg"})
-_MIME_TYPES = {"PNG": "image/png", "JPEG": "image/jpeg"}
+_SUPPORTED_EXTENSIONS = frozenset(
+    {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+)
+_MIME_TYPES = {
+    "PNG": "image/png",
+    "JPEG": "image/jpeg",
+    "WEBP": "image/webp",
+    "BMP": "image/bmp",
+    "TIFF": "image/tiff",
+}
 
 
 class SVGConverterError(Exception):
@@ -33,7 +41,7 @@ class InputPathError(SVGConverterError):
 
 
 class UnsupportedImageError(SVGConverterError):
-    """Raised when an input is not a supported PNG or JPEG image."""
+    """Raised when an input is not a supported raster image."""
 
 
 class OutputExistsError(SVGConverterError):
@@ -206,7 +214,7 @@ def convert_file(
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
 ) -> Path:
-    """Convert one PNG or JPEG image and return its output SVG path.
+    """Convert one supported raster image and return its output SVG path.
 
     ``output_path`` defaults to the input filename with an ``.svg`` suffix.
     Parent directories for an explicit output path are created automatically.
