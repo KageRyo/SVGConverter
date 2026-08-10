@@ -7,7 +7,13 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
-from .converter import BatchResult, SVGConverterError, convert_directory, convert_file
+from .converter import (
+    BatchResult,
+    SVGConverterError,
+    VectorizeOptions,
+    convert_directory,
+    convert_file,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -16,8 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="svgconverter",
         description=(
-            "Embed a PNG or JPEG raster image in an SVG container. "
-            "This does not vectorize the image."
+            "Convert PNG or JPEG images to SVG by embedding or vectorizing them."
         ),
     )
     parser.add_argument(
@@ -40,9 +45,48 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--mode",
-        choices=("embed",),
+        choices=("embed", "vectorize"),
         default="embed",
-        help="Conversion mode (only embed is currently available)",
+        help="Conversion mode: embed preserves raster pixels; vectorize traces paths",
+    )
+    vectorize_group = parser.add_argument_group("vectorize options")
+    vectorize_group.add_argument(
+        "--vectorize-color-mode",
+        choices=("color", "binary"),
+        default="color",
+        help="Trace colour regions or high-contrast binary artwork",
+    )
+    vectorize_group.add_argument(
+        "--vectorize-hierarchical",
+        choices=("stacked", "cutout"),
+        default="stacked",
+        help="Use stacked paths or cutout regions while vectorizing",
+    )
+    vectorize_group.add_argument(
+        "--vectorize-curve-mode",
+        choices=("pixel", "polygon", "spline"),
+        default="spline",
+        help="Curve-fitting strategy while vectorizing",
+    )
+    vectorize_group.add_argument(
+        "--filter-speckle",
+        type=int,
+        help="Discard vectorized regions smaller than this pixel count",
+    )
+    vectorize_group.add_argument(
+        "--color-precision",
+        type=int,
+        help="Significant RGB bits to retain in vectorize mode",
+    )
+    vectorize_group.add_argument(
+        "--layer-difference",
+        type=int,
+        help="Minimum colour difference between vectorized layers",
+    )
+    vectorize_group.add_argument(
+        "--path-precision",
+        type=int,
+        help="Decimal places to retain in generated path coordinates",
     )
     parser.add_argument(
         "--version", action="version", version=f"%(prog)s {__version__}"
@@ -58,11 +102,26 @@ def _print_batch_result(result: BatchResult) -> None:
     print(f"Summary: {result.success_count} converted, {result.failure_count} failed")
 
 
+def _vectorize_options_from_arguments(
+    arguments: argparse.Namespace,
+) -> VectorizeOptions:
+    return VectorizeOptions(
+        color_mode=arguments.vectorize_color_mode,
+        hierarchical=arguments.vectorize_hierarchical,
+        curve_mode=arguments.vectorize_curve_mode,
+        filter_speckle=arguments.filter_speckle,
+        color_precision=arguments.color_precision,
+        layer_difference=arguments.layer_difference,
+        path_precision=arguments.path_precision,
+    )
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI and return a process exit code."""
 
     parser = build_parser()
     arguments = parser.parse_args(argv)
+    vectorize_options = _vectorize_options_from_arguments(arguments)
     try:
         if arguments.input.is_file():
             if arguments.output_dir is not None:
@@ -72,6 +131,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 arguments.output,
                 overwrite=arguments.overwrite,
                 mode=arguments.mode,
+                vectorize_options=vectorize_options,
             )
             print(f"Converted: {output_path}")
             return 0
@@ -83,6 +143,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.output_dir,
             overwrite=arguments.overwrite,
             mode=arguments.mode,
+            vectorize_options=vectorize_options,
         )
         _print_batch_result(result)
         return 1 if result.failed else 0

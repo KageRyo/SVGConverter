@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "svgconverter"
-version = "1.2.0"
-description = "Embed PNG and JPEG raster images in SVG containers."
+version = "1.3.0"
+description = "Embed or vectorize PNG and JPEG images as SVG."
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Chien-Hsun Chang" }]
-keywords = ["image", "svg", "converter", "raster", "embed"]
+keywords = ["image", "svg", "converter", "raster", "embed", "vectorize"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -31,6 +31,7 @@ dependencies = ["Pillow>=10.0"]
 
 [project.optional-dependencies]
 dev = ["build>=1.2", "pytest>=8.0", "ruff>=0.8", "twine>=6.0"]
+vectorize = ["vtracer>=0.6.15,<1.0"]
 
 [project.urls]
 Homepage = "https://github.com/KageRyo/SVGConverter"

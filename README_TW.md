@@ -2,18 +2,28 @@
 
 [English](README.md)
 
-SVGConverter 會將 PNG 或 JPEG 影像包裝到 SVG 容器中，並提供 Python API、命令列工具與桌面 GUI。
+SVGConverter 可將 PNG、JPEG 影像轉為 SVG，並提供 Python API、命令列工具與桌面 GUI。
 
-> **重要：**目前的 `embed` 模式是把原始點陣影像 Base64 編碼後放進 SVG 的 `<image>`
-> 元素。它**不會**把像素描繪成向量路徑，也不會因為包進 SVG 就自然縮小檔案。真正的
-> `vectorize` 模式會在後續版本另行提供。
+## 轉換模式
+
+- **`embed`**（預設）把原始點陣資料放進 SVG 的 `<image>` 元素，能保留來源像素；但它不是
+  向量化，且 Base64 編碼可能讓輸出大於原圖。
+- **`vectorize`** 使用選用的 [VTracer](https://github.com/visioncortex/vtracer) 後端，把
+  點陣區域描繪為 SVG 路徑。它適合 logo、icon、插圖與高對比線稿；照片可能產生較大且風格化、
+  不一定忠於原圖的結果。
 
 ## 安裝
 
-SVGConverter 需要 Python 3.10 以上。v1.2.0 發布到 PyPI 後可使用：
+SVGConverter 需要 Python 3.10 以上：
 
 ```bash
 python -m pip install --upgrade svgconverter
+```
+
+需要實際向量化時，安裝額外相依：
+
+```bash
+python -m pip install --upgrade "svgconverter[vectorize]"
 ```
 
 目前的開發版本可直接安裝：
@@ -31,6 +41,7 @@ python -m pip install .
 ```bash
 svgconverter image.png
 svgconverter photo.jpg --output output.svg
+svgconverter logo.png --mode vectorize --vectorize-color-mode binary
 ```
 
 轉換資料夾最外層的所有支援影像：
@@ -41,6 +52,7 @@ svgconverter ./images --output-dir ./svg-output
 
 除非指定 `--overwrite`，既有輸出檔不會被覆寫。使用 `svgconverter --help` 可查看完整選項。
 目前支援 PNG、JPG、JPEG（含大寫副檔名）；遞迴轉換與影像最佳化尚未包含在此版本。
+`vectorize` 模式需要安裝選用的 `vectorize` extra。
 
 ## Python API
 
@@ -48,6 +60,7 @@ svgconverter ./images --output-dir ./svg-output
 from svgconverter import SVGConverter, convert_file
 
 convert_file("image.png", "image.svg")
+convert_file("logo.png", "logo.svg", mode="vectorize")
 
 converter = SVGConverter(overwrite=True)
 result = converter.convert_directory("./images", "./svg-output")
@@ -66,20 +79,7 @@ svgconverter-gui
 ```
 
 開發環境仍可用 `python main.py` 啟動相同 GUI。目前 GUI 以資料夾為單位轉換，並支援正體中文、
-English、日文；它與命令列共用同一套公開轉換 API。
-
-## 發布流程
-
-標籤發布使用 [PyPI Trusted Publishing](https://docs.pypi.org/trusted-publishers/)，不保存長期
-PyPI API token。第一次發布前，請在 PyPI 設定 pending 或 normal Trusted Publisher：
-
-- owner：`KageRyo`
-- repository：`SVGConverter`
-- workflow：`release.yml`
-- environment：`pypi`
-
-PR 合併後，建立與 `pyproject.toml` 版本一致的註解標籤 `v1.2.0`。工作流程會建置、檢查、發布到
-PyPI，成功後才建立並附上 distributions 的 GitHub Release。
+English、日文；目前 GUI 使用 embed mode，`vectorize` 模式可從 Python API 與命令列使用。
 
 ## 貢獻與授權
 

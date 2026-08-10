@@ -50,3 +50,17 @@ jobs:
         run: |
           python -m pip install --force-reinstall dist/*.whl
           python -c "import svgconverter; print(svgconverter.__version__)"
+
+  vectorize:
+    name: Vectorize integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install vectorize extra and test tools
+        run: python -m pip install -e ".[dev,vectorize]"
+      - name: Test vectorize mode
+        run: pytest -q tests/test_vectorize.py
