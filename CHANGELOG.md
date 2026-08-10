@@ -5,7 +5,20 @@ All notable changes to SVGConverter are documented in this file.
 This project follows [Semantic Versioning](https://semver.org/) and uses
 [Conventional Commits](https://www.conventionalcommits.org/).
 
-## Unreleased (planned v1.2.0)
+## 1.3.0 - 2026-08-10
+
+### Added
+
+- Optional VTracer-backed `vectorize` mode for actual SVG path generation.
+- Vectorize CLI controls for colour handling, curve fitting, and output detail.
+- GitHub Flow guidance and a separate maintainer release guide.
+
+### Changed
+
+- User README files now focus on usage and conversion behavior rather than
+  maintainer release operations.
+
+## 1.2.0 - 2026-08-10
 
 ### Added
 

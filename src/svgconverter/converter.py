@@ -8,13 +8,17 @@ attempt is made to convert pixels into vector paths.
 from __future__ import annotations
 
 import base64
+import importlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from PIL import Image, UnidentifiedImageError
 
-ConversionMode = Literal["embed"]
+ConversionMode = Literal["embed", "vectorize"]
+VectorizeColorMode = Literal["color", "binary"]
+VectorizeHierarchy = Literal["stacked", "cutout"]
+VectorizeCurveMode = Literal["pixel", "polygon", "spline"]
 
 _SUPPORTED_EXTENSIONS = frozenset({".png", ".jpg", ".jpeg"})
 _MIME_TYPES = {"PNG": "image/png", "JPEG": "image/jpeg"}
@@ -38,6 +42,52 @@ class OutputExistsError(SVGConverterError):
 
 class ConversionError(SVGConverterError):
     """Raised when an image cannot be read or an SVG cannot be written."""
+
+
+class VectorizationDependencyError(SVGConverterError):
+    """Raised when vectorize mode is used without its optional backend."""
+
+
+@dataclass(frozen=True)
+class VectorizeOptions:
+    """VTracer options used by the ``vectorize`` conversion mode.
+
+    The defaults work well for colour illustrations. Use ``color_mode="binary"``
+    for high-contrast line art. ``filter_speckle`` removes very small regions,
+    while ``color_precision`` and ``layer_difference`` trade colour detail for
+    a simpler output.
+    """
+
+    color_mode: VectorizeColorMode = "color"
+    hierarchical: VectorizeHierarchy = "stacked"
+    curve_mode: VectorizeCurveMode = "spline"
+    filter_speckle: int | None = None
+    color_precision: int | None = None
+    layer_difference: int | None = None
+    path_precision: int | None = None
+
+    def as_vtracer_kwargs(self) -> dict[str, str | int]:
+        """Return keyword arguments understood by VTracer's stable API."""
+
+        options: dict[str, str | int] = {
+            "colormode": self.color_mode,
+            "hierarchical": self.hierarchical,
+            "mode": self.curve_mode,
+        }
+        optional_values = {
+            "filter_speckle": self.filter_speckle,
+            "color_precision": self.color_precision,
+            "layer_difference": self.layer_difference,
+            "path_precision": self.path_precision,
+        }
+        options.update(
+            {
+                name: value
+                for name, value in optional_values.items()
+                if value is not None
+            }
+        )
+        return options
 
 
 @dataclass(frozen=True)
@@ -69,10 +119,8 @@ class BatchResult:
 
 
 def _validate_mode(mode: ConversionMode) -> None:
-    if mode != "embed":
-        raise ValueError(
-            "Only mode='embed' is available; vectorization is not implemented."
-        )
+    if mode not in ("embed", "vectorize"):
+        raise ValueError("mode must be either 'embed' or 'vectorize'.")
 
 
 def _validate_input(input_path: Path) -> None:
@@ -116,18 +164,57 @@ def _svg_document(*, data_uri: str, width: int, height: int) -> str:
     )
 
 
+def _embed_image(source: Path, destination: Path) -> None:
+    width, height, mime_type = _read_image_metadata(source)
+    image_data = source.read_bytes()
+    data_uri = f"data:{mime_type};base64,{base64.b64encode(image_data).decode('ascii')}"
+    destination.write_text(
+        _svg_document(data_uri=data_uri, width=width, height=height), encoding="utf-8"
+    )
+
+
+def _load_vtracer() -> object:
+    try:
+        return importlib.import_module("vtracer")
+    except ModuleNotFoundError as error:
+        raise VectorizationDependencyError(
+            "Vectorize mode requires the optional VTracer backend. "
+            "Install it with: pip install 'svgconverter[vectorize]'"
+        ) from error
+
+
+def _vectorize_image(
+    source: Path, destination: Path, vectorize_options: VectorizeOptions
+) -> None:
+    vtracer = _load_vtracer()
+    try:
+        vtracer.convert_image_to_svg_py(  # type: ignore[attr-defined]
+            str(source), str(destination), **vectorize_options.as_vtracer_kwargs()
+        )
+    except Exception as error:
+        raise ConversionError(f"Cannot vectorize image {source}: {error}") from error
+
+    if not destination.is_file():
+        raise ConversionError(f"Vectorization did not create an SVG: {destination}")
+
+
 def convert_file(
     input_path: str | Path,
     output_path: str | Path | None = None,
     *,
     overwrite: bool = False,
     mode: ConversionMode = "embed",
+    vectorize_options: VectorizeOptions | None = None,
 ) -> Path:
-    """Embed one PNG or JPEG image in an SVG file and return its output path.
+    """Convert one PNG or JPEG image and return its output SVG path.
 
     ``output_path`` defaults to the input filename with an ``.svg`` suffix.
     Parent directories for an explicit output path are created automatically.
     Existing outputs are preserved unless ``overwrite=True`` is provided.
+
+    ``mode="embed"`` stores the original raster bytes in an SVG ``<image>``
+    element. ``mode="vectorize"`` traces the image into vector paths and
+    requires the ``vectorize`` optional dependency.
     """
 
     _validate_mode(mode)
@@ -144,17 +231,14 @@ def convert_file(
     if destination.exists() and destination.is_dir():
         raise InputPathError(f"Output path is a directory: {destination}")
 
-    width, height, mime_type = _read_image_metadata(source)
     try:
-        image_data = source.read_bytes()
-        data_uri = (
-            f"data:{mime_type};base64,{base64.b64encode(image_data).decode('ascii')}"
-        )
         destination.parent.mkdir(parents=True, exist_ok=True)
-        destination.write_text(
-            _svg_document(data_uri=data_uri, width=width, height=height),
-            encoding="utf-8",
-        )
+        if mode == "embed":
+            _embed_image(source, destination)
+        else:
+            _vectorize_image(
+                source, destination, vectorize_options or VectorizeOptions()
+            )
     except OSError as error:
         raise ConversionError(f"Cannot write SVG {destination}: {error}") from error
 
@@ -167,6 +251,7 @@ def convert_directory(
     *,
     overwrite: bool = False,
     mode: ConversionMode = "embed",
+    vectorize_options: VectorizeOptions | None = None,
 ) -> BatchResult:
     """Convert supported images directly in a directory without recursing.
 
@@ -199,7 +284,13 @@ def convert_directory(
         destination = destination_directory / f"{source.stem}.svg"
         try:
             converted.append(
-                convert_file(source, destination, overwrite=overwrite, mode=mode)
+                convert_file(
+                    source,
+                    destination,
+                    overwrite=overwrite,
+                    mode=mode,
+                    vectorize_options=vectorize_options,
+                )
             )
         except SVGConverterError as error:
             failed.append(ConversionFailure(input_path=source, error=error))
@@ -208,14 +299,19 @@ def convert_directory(
 
 
 class SVGConverter:
-    """Configurable facade for repeated SVG embedding operations."""
+    """Configurable facade for repeated embedding or vectorization operations."""
 
     def __init__(
-        self, *, overwrite: bool = False, mode: ConversionMode = "embed"
+        self,
+        *,
+        overwrite: bool = False,
+        mode: ConversionMode = "embed",
+        vectorize_options: VectorizeOptions | None = None,
     ) -> None:
         _validate_mode(mode)
         self.overwrite = overwrite
         self.mode = mode
+        self.vectorize_options = vectorize_options
 
     def convert_file(
         self, input_path: str | Path, output_path: str | Path | None = None
@@ -223,7 +319,11 @@ class SVGConverter:
         """Convert one image using this instance's configuration."""
 
         return convert_file(
-            input_path, output_path, overwrite=self.overwrite, mode=self.mode
+            input_path,
+            output_path,
+            overwrite=self.overwrite,
+            mode=self.mode,
+            vectorize_options=self.vectorize_options,
         )
 
     def convert_directory(
@@ -232,5 +332,9 @@ class SVGConverter:
         """Convert one directory using this instance's configuration."""
 
         return convert_directory(
-            directory, output_dir, overwrite=self.overwrite, mode=self.mode
+            directory,
+            output_dir,
+            overwrite=self.overwrite,
+            mode=self.mode,
+            vectorize_options=self.vectorize_options,
         )

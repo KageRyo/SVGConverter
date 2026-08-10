@@ -5,12 +5,15 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+import svgconverter.converter as converter_module
 from svgconverter import (
     ConversionError,
     InputPathError,
     OutputExistsError,
     SVGConverter,
     UnsupportedImageError,
+    VectorizationDependencyError,
+    VectorizeOptions,
     convert_directory,
     convert_file,
 )
@@ -116,8 +119,48 @@ def test_converter_class_uses_its_configuration(tmp_path: Path) -> None:
     assert "data:image/png;base64," in destination.read_text(encoding="utf-8")
 
 
-def test_only_embed_mode_is_available(tmp_path: Path) -> None:
+def test_unknown_conversion_mode_is_rejected(tmp_path: Path) -> None:
     source = create_image(tmp_path / "sample.png", "PNG")
 
-    with pytest.raises(ValueError, match="Only mode='embed'"):
-        convert_file(source, mode="vectorize")  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="either 'embed' or 'vectorize'"):
+        convert_file(source, mode="unknown")  # type: ignore[arg-type]
+
+
+def test_vectorize_mode_explains_missing_optional_dependency(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+
+    def raise_missing_module(_: str) -> object:
+        raise ModuleNotFoundError("No module named 'vtracer'")
+
+    monkeypatch.setattr(
+        converter_module.importlib, "import_module", raise_missing_module
+    )
+
+    with pytest.raises(
+        VectorizationDependencyError, match=r"svgconverter\[vectorize\]"
+    ):
+        convert_file(source, mode="vectorize")
+
+
+def test_vectorize_options_map_to_stable_backend_arguments() -> None:
+    options = VectorizeOptions(
+        color_mode="binary",
+        hierarchical="cutout",
+        curve_mode="polygon",
+        filter_speckle=4,
+        color_precision=6,
+        layer_difference=16,
+        path_precision=3,
+    )
+
+    assert options.as_vtracer_kwargs() == {
+        "colormode": "binary",
+        "hierarchical": "cutout",
+        "mode": "polygon",
+        "filter_speckle": 4,
+        "color_precision": 6,
+        "layer_difference": 16,
+        "path_precision": 3,
+    }

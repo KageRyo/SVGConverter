@@ -28,9 +28,24 @@ python -m twine check dist/*
 
 ## Scope and changes
 
-The current `embed` mode stores a PNG or JPEG raster image in an SVG
-`<image>` element. It is not vectorization. Please keep that distinction clear
-in APIs, tests, CLI help, and documentation.
+SVGConverter has two distinct conversion modes. `embed` stores a PNG or JPEG
+raster image in an SVG `<image>` element; `vectorize` creates SVG paths. Keep
+their different output, quality, and dependency requirements clear in APIs,
+tests, CLI help, and documentation.
+
+## GitHub Flow
+
+`main` must remain releasable. Use this workflow for every change:
+
+1. Start a descriptive branch from current `main`, such as `feat/vectorize` or
+   `fix/jpeg-mime`.
+2. Make focused Conventional Commits and run the local checks above.
+3. Open a pull request targeting `main`; explain user-visible behavior and link
+   relevant issues.
+4. Wait for required CI checks and review feedback to be resolved.
+5. Squash merge the PR. Do not directly push feature changes to `main`.
+
+See [RELEASING.md](RELEASING.md) for the maintainer-only tag and PyPI process.
 
 Use [Conventional Commits](https://www.conventionalcommits.org/) for commit
 subjects, for example `fix: preserve JPEG MIME types` or
