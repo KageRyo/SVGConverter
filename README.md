@@ -2,8 +2,8 @@
 
 [正體中文](README_TW.md)
 
-SVGConverter converts PNG and JPEG images to SVG through a small Python API,
-command-line interface, and desktop GUI.
+SVGConverter converts PNG, JPEG, WebP, BMP, and TIFF images to SVG through a
+small Python API, command-line interface, and desktop GUI.
 
 ## Conversion modes
 
@@ -54,10 +54,10 @@ svgconverter ./images --output-dir ./svg-output
 ```
 
 Outputs are never overwritten unless `--overwrite` is supplied. Run
-`svgconverter --help` for all options. Supported inputs are PNG, JPG, and JPEG
-(including upper-case extensions); recursive conversion and image optimization
-are not part of the current release. Vectorize mode requires the optional
-`vectorize` extra.
+`svgconverter --help` for all options. Supported inputs are PNG, JPG, JPEG,
+WebP, BMP, TIF, and TIFF (including upper-case extensions); recursive
+conversion and image optimization are not part of the current release.
+Vectorize mode requires the optional `vectorize` extra.
 
 ## Python API
 

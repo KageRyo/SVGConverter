@@ -22,11 +22,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="svgconverter",
         description=(
-            "Convert PNG or JPEG images to SVG by embedding or vectorizing them."
+            "Convert PNG, JPEG, WebP, BMP, or TIFF images to SVG by embedding "
+            "or vectorizing them."
         ),
     )
     parser.add_argument(
-        "input", type=Path, help="PNG/JPG/JPEG file or a directory of images"
+        "input",
+        type=Path,
+        help="PNG/JPEG/WebP/BMP/TIFF file or a directory of images",
     )
     output_group = parser.add_mutually_exclusive_group()
     output_group.add_argument(

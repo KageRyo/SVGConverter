@@ -5,6 +5,13 @@ All notable changes to SVGConverter are documented in this file.
 This project follows [Semantic Versioning](https://semver.org/) and uses
 [Conventional Commits](https://www.conventionalcommits.org/).
 
+## Unreleased
+
+### Added
+
+- WebP, BMP, and TIFF input support in embed and vectorize modes, including
+  correct self-contained data URI MIME types.
+
 ## 1.3.0 - 2026-08-10
 
 ### Added
