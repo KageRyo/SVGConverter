@@ -13,6 +13,7 @@ from .converter import (
     VectorizeOptions,
     convert_directory,
     convert_file,
+    convert_paths,
 )
 
 
@@ -27,9 +28,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "input",
+        "inputs",
         type=Path,
-        help="PNG/JPEG/WebP/BMP/TIFF file or a directory of images",
+        nargs="+",
+        metavar="INPUT",
+        help="PNG/JPEG/WebP/BMP/TIFF files and/or directories of images",
     )
     output_group = parser.add_mutually_exclusive_group()
     output_group.add_argument(
@@ -41,10 +44,15 @@ def build_parser() -> argparse.ArgumentParser:
     output_group.add_argument(
         "--output-dir",
         type=Path,
-        help="Output directory for a directory input",
+        help="Output directory for directory or multi-file inputs",
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Replace existing output SVG files"
+    )
+    parser.add_argument(
+        "--recursive",
+        action="store_true",
+        help="Include supported images in nested directories",
     )
     parser.add_argument(
         "--mode",
@@ -100,9 +108,15 @@ def build_parser() -> argparse.ArgumentParser:
 def _print_batch_result(result: BatchResult) -> None:
     for output_path in result.converted:
         print(f"Converted: {output_path}")
+    for skip in result.skipped:
+        print(f"Skipped: {skip.input_path} -> {skip.output_path} ({skip.reason})")
     for failure in result.failed:
         print(f"Failed: {failure.input_path}: {failure.error}")
-    print(f"Summary: {result.success_count} converted, {result.failure_count} failed")
+    print(
+        "Summary: "
+        f"{result.success_count} converted, {result.skipped_count} skipped, "
+        f"{result.failure_count} failed"
+    )
 
 
 def _vectorize_options_from_arguments(
@@ -126,11 +140,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     arguments = parser.parse_args(argv)
     vectorize_options = _vectorize_options_from_arguments(arguments)
     try:
-        if arguments.input.is_file():
+        if len(arguments.inputs) == 1 and arguments.inputs[0].is_file():
             if arguments.output_dir is not None:
                 parser.error("--output-dir can only be used with a directory input")
             output_path = convert_file(
-                arguments.input,
+                arguments.inputs[0],
                 arguments.output,
                 overwrite=arguments.overwrite,
                 mode=arguments.mode,
@@ -141,13 +155,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
         if arguments.output is not None:
             parser.error("--output can only be used with a single input file")
-        result = convert_directory(
-            arguments.input,
-            arguments.output_dir,
-            overwrite=arguments.overwrite,
-            mode=arguments.mode,
-            vectorize_options=vectorize_options,
-        )
+
+        if len(arguments.inputs) == 1:
+            result = convert_directory(
+                arguments.inputs[0],
+                arguments.output_dir,
+                overwrite=arguments.overwrite,
+                recursive=arguments.recursive,
+                mode=arguments.mode,
+                vectorize_options=vectorize_options,
+            )
+        else:
+            result = convert_paths(
+                arguments.inputs,
+                arguments.output_dir,
+                overwrite=arguments.overwrite,
+                recursive=arguments.recursive,
+                mode=arguments.mode,
+                vectorize_options=vectorize_options,
+            )
         _print_batch_result(result)
         return 1 if result.failed else 0
     except SVGConverterError as error:

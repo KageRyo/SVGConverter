@@ -9,6 +9,7 @@ import svgconverter.converter as converter_module
 from svgconverter import (
     ConversionError,
     InputPathError,
+    OutputCollisionError,
     OutputExistsError,
     SVGConverter,
     UnsupportedImageError,
@@ -16,10 +17,12 @@ from svgconverter import (
     VectorizeOptions,
     convert_directory,
     convert_file,
+    convert_paths,
 )
 
 
 def create_image(path: Path, image_format: str, size: tuple[int, int] = (3, 2)) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
     image = Image.new("RGB", size, color=(25, 50, 75))
     image.save(path, format=image_format)
     return path
@@ -142,6 +145,112 @@ def test_directory_conversion_reports_successes_and_failures(tmp_path: Path) -> 
     assert (output_directory / "one.svg").is_file()
 
 
+def test_recursive_directory_conversion_preserves_relative_output_paths(
+    tmp_path: Path,
+) -> None:
+    source_directory = tmp_path / "images"
+    create_image(source_directory / "top.png", "PNG")
+    create_image(source_directory / "one" / "logo.png", "PNG")
+    create_image(source_directory / "two" / "logo.png", "PNG")
+
+    non_recursive_output = tmp_path / "non-recursive"
+    non_recursive_result = convert_directory(source_directory, non_recursive_output)
+
+    assert non_recursive_result.success_count == 1
+    assert (non_recursive_output / "top.svg").is_file()
+    assert not (non_recursive_output / "one" / "logo.svg").exists()
+
+    recursive_output = tmp_path / "recursive"
+    recursive_result = convert_directory(
+        source_directory, recursive_output, recursive=True
+    )
+
+    assert recursive_result.success_count == 3
+    assert (recursive_output / "top.svg").is_file()
+    assert (recursive_output / "one" / "logo.svg").is_file()
+    assert (recursive_output / "two" / "logo.svg").is_file()
+
+
+def test_directory_conversion_skips_existing_outputs_unless_overwriting(
+    tmp_path: Path,
+) -> None:
+    source_directory = tmp_path / "images"
+    create_image(source_directory / "sample.png", "PNG")
+    output_directory = tmp_path / "output"
+    output_directory.mkdir()
+    destination = output_directory / "sample.svg"
+    destination.write_text("existing output", encoding="utf-8")
+
+    skipped_result = convert_directory(source_directory, output_directory)
+
+    assert skipped_result.success_count == 0
+    assert skipped_result.skipped_count == 1
+    assert skipped_result.failure_count == 0
+    assert skipped_result.skipped[0].input_path == source_directory / "sample.png"
+    assert skipped_result.skipped[0].output_path == destination
+    assert destination.read_text(encoding="utf-8") == "existing output"
+
+    overwritten_result = convert_directory(
+        source_directory, output_directory, overwrite=True
+    )
+
+    assert overwritten_result.success_count == 1
+    assert overwritten_result.skipped_count == 0
+    assert "data:image/png;base64," in destination.read_text(encoding="utf-8")
+
+
+def test_convert_paths_converts_multiple_input_files_to_one_output_directory(
+    tmp_path: Path,
+) -> None:
+    first = create_image(tmp_path / "first.png", "PNG")
+    second = create_image(tmp_path / "second.jpg", "JPEG")
+    output_directory = tmp_path / "output"
+
+    result = convert_paths([first, second], output_directory)
+
+    assert result.success_count == 2
+    assert result.skipped_count == 0
+    assert result.failure_count == 0
+    assert (output_directory / "first.svg").is_file()
+    assert (output_directory / "second.svg").is_file()
+
+
+def test_convert_paths_keeps_multiple_directory_trees_separate(
+    tmp_path: Path,
+) -> None:
+    first_directory = tmp_path / "first"
+    second_directory = tmp_path / "second"
+    create_image(first_directory / "nested" / "logo.png", "PNG")
+    create_image(second_directory / "nested" / "logo.png", "PNG")
+    output_directory = tmp_path / "output"
+
+    result = convert_paths(
+        [first_directory, second_directory], output_directory, recursive=True
+    )
+
+    assert result.success_count == 2
+    assert result.failure_count == 0
+    assert (output_directory / "first" / "nested" / "logo.svg").is_file()
+    assert (output_directory / "second" / "nested" / "logo.svg").is_file()
+
+
+def test_convert_paths_reports_output_collisions_without_writing(
+    tmp_path: Path,
+) -> None:
+    png = create_image(tmp_path / "image.png", "PNG")
+    jpeg = create_image(tmp_path / "image.jpg", "JPEG")
+    output_directory = tmp_path / "output"
+
+    result = convert_paths([png, jpeg], output_directory)
+
+    assert result.success_count == 0
+    assert result.failure_count == 2
+    assert all(
+        isinstance(failure.error, OutputCollisionError) for failure in result.failed
+    )
+    assert not (output_directory / "image.svg").exists()
+
+
 def test_converter_class_uses_its_configuration(tmp_path: Path) -> None:
     source = create_image(tmp_path / "sample.png", "PNG")
     destination = tmp_path / "result.svg"
@@ -151,6 +260,21 @@ def test_converter_class_uses_its_configuration(tmp_path: Path) -> None:
 
     assert output == destination
     assert "data:image/png;base64," in destination.read_text(encoding="utf-8")
+
+
+def test_converter_class_can_configure_recursive_directory_conversion(
+    tmp_path: Path,
+) -> None:
+    source_directory = tmp_path / "images"
+    create_image(source_directory / "nested" / "sample.png", "PNG")
+    output_directory = tmp_path / "output"
+
+    result = SVGConverter(recursive=True).convert_directory(
+        source_directory, output_directory
+    )
+
+    assert result.success_count == 1
+    assert (output_directory / "nested" / "sample.svg").is_file()
 
 
 def test_unknown_conversion_mode_is_rejected(tmp_path: Path) -> None:
