@@ -8,9 +8,9 @@ from PIL import Image
 from svgconverter.cli import main
 
 
-def create_image(path: Path, image_format: str) -> Path:
+def create_image(path: Path, image_format: str, size: tuple[int, int] = (2, 2)) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    image = Image.new("RGB", (2, 2), color=(25, 50, 75))
+    image = Image.new("RGB", size, color=(25, 50, 75))
     image.save(path, format=image_format)
     return path
 
@@ -26,6 +26,21 @@ def test_cli_converts_single_file_to_explicit_output(
     assert exit_code == 0
     assert destination.is_file()
     assert "Converted:" in capsys.readouterr().out
+
+
+def test_cli_applies_embed_optimization_and_prints_size_metrics(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG", (120, 60))
+    destination = tmp_path / "output.svg"
+
+    exit_code = main([str(source), "--output", str(destination), "--max-width", "30"])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert 'width="30" height="15"' in destination.read_text(encoding="utf-8")
+    assert "Sizes:" in captured.out
+    assert "embedded raster" in captured.out
 
 
 def test_cli_converts_directory_and_reports_a_failure(
@@ -100,6 +115,21 @@ def test_cli_summarizes_existing_outputs_as_skipped(
     assert exit_code == 0
     assert "Skipped:" in captured.out
     assert "Summary: 0 converted, 1 skipped, 0 failed" in captured.out
+
+
+def test_cli_batch_summary_includes_size_metrics(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source_directory = tmp_path / "images"
+    create_image(source_directory / "sample.png", "PNG")
+    output_directory = tmp_path / "out"
+
+    exit_code = main([str(source_directory), "--output-dir", str(output_directory)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Size summary:" in captured.out
+    assert "embedded raster" in captured.out
 
 
 def test_cli_uses_nonzero_exit_code_for_invalid_input(

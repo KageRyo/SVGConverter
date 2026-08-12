@@ -13,11 +13,14 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
   correct self-contained data URI MIME types.
 - Opt-in recursive directory conversion that preserves nested output paths.
 - Multi-input batch conversion through the Python API and CLI.
+- Opt-in embed raster preprocessing for downscaling, JPEG quality, and PNG
+  compression/optimization.
 
 ### Changed
 
 - Batch conversion now reports converted, skipped, and failed items; existing
   SVG outputs are skipped unless overwrite is explicitly requested.
+- Conversion metrics report source, embedded-raster, and SVG byte sizes.
 
 ## 1.3.0 - 2026-08-10
 

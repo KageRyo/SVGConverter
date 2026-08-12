@@ -8,8 +8,10 @@ from .converter import (
     BatchResult,
     ConversionError,
     ConversionFailure,
+    ConversionMetrics,
     ConversionMode,
     ConversionSkip,
+    EmbedOptions,
     InputPathError,
     OutputCollisionError,
     OutputExistsError,
@@ -20,6 +22,7 @@ from .converter import (
     VectorizeOptions,
     convert_directory,
     convert_file,
+    convert_file_with_metrics,
     convert_paths,
 )
 
@@ -28,7 +31,9 @@ __all__ = [
     "ConversionMode",
     "ConversionError",
     "ConversionFailure",
+    "ConversionMetrics",
     "ConversionSkip",
+    "EmbedOptions",
     "InputPathError",
     "OutputExistsError",
     "OutputCollisionError",
@@ -39,6 +44,7 @@ __all__ = [
     "VectorizeOptions",
     "convert_directory",
     "convert_file",
+    "convert_file_with_metrics",
     "convert_paths",
 ]
 
