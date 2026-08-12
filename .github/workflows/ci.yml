@@ -51,6 +51,41 @@ jobs:
           python -m pip install --force-reinstall dist/*.whl
           python -c "import svgconverter; print(svgconverter.__version__)"
 
+  windows-executable:
+    name: Build Windows executable
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install application and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pyinstaller
+      - name: Build standalone GUI executable
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name SVGConverter --paths src
+          --collect-data "svgconverter.resources" main.py
+      - name: Smoke test executable startup
+        shell: pwsh
+        run: |
+          $executable = (Resolve-Path "dist/SVGConverter.exe").Path
+          $process = Start-Process -FilePath $executable -PassThru
+          Start-Sleep -Seconds 3
+          if ($process.HasExited) {
+            throw "SVGConverter.exe exited during startup."
+          }
+          Stop-Process -Id $process.Id -Force
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-executable
+          path: dist/SVGConverter.exe
+          if-no-files-found: error
+
   vectorize:
     name: Vectorize integration
     runs-on: ubuntu-latest

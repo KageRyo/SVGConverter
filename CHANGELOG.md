@@ -11,6 +11,8 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 - GUI file selection, non-blocking batch progress, cancellation, and per-file
   failure details.
+- Windows CI builds a standalone GUI executable and attaches it to tagged
+  GitHub Releases.
 
 ### Changed
 

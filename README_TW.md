@@ -140,6 +140,9 @@ svgconverter-gui
 不會關閉應用程式。GUI 支援正體中文、English、日文；目前 GUI 使用 embed mode，`vectorize` 模式
 可從 Python API 與命令列使用。
 
+支援此功能的 release 中，Windows 使用者可從 GitHub Release 頁面下載獨立的
+`SVGConverter-vX.Y.Z-windows-x86_64.exe` asset，不需要自行安裝 Python。
+
 ## 貢獻與授權
 
 本機檢查與提交格式請見 [CONTRIBUTING.md](CONTRIBUTING.md)。本專案採用 [MIT License](LICENSE)。

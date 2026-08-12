@@ -34,4 +34,11 @@ PyPI API token.
 
 5. Monitor the `Release to PyPI` workflow. It checks the tag/version match,
    builds and validates distributions, publishes through Trusted Publishing,
-   and then creates the GitHub Release with the generated artifacts.
+   builds and smoke-tests a self-contained Windows GUI executable, and then
+   creates the GitHub Release with all generated artifacts.
+
+The release assets include a versioned `SVGConverter-vX.Y.Z-windows-x86_64.exe`
+that does not require a local Python installation. The workflow explicitly
+bundles GUI language resources; before tagging a desktop release, download the
+Windows CI artifact and manually verify file/folder selection, progress,
+cancellation, and language switching on a clean Windows machine.
