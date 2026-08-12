@@ -7,6 +7,8 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.5.0 - 2026-08-12
+
 ### Added
 
 - GUI file selection, non-blocking batch progress, cancellation, and per-file
