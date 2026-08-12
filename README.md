@@ -113,8 +113,10 @@ metric = convert_file_with_metrics(
     embed_options=EmbedOptions(max_width=1600, jpeg_quality=82),
 )
 
+
 def report(progress: ConversionProgress) -> None:
     print(progress.completed, progress.total, progress.input_path)
+
 
 batch = convert_paths(
     ["logo.png", "photo.jpg"], "./svg-output", progress_callback=report
