@@ -7,6 +7,8 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.4.0 - 2026-08-12
+
 ### Added
 
 - WebP, BMP, and TIFF input support in embed and vectorize modes, including
