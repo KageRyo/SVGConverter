@@ -69,10 +69,31 @@ svgconverter image.png photo.jpg --output-dir ./svg-output
 使用 `svgconverter --help` 可查看完整選項。`vectorize` 模式需要安裝選用的
 `vectorize` extra。
 
+### embed 模式最佳化
+
+`embed` 模式預設會保留原始點陣 bytes。只有在可接受品質取捨、希望縮小點陣 payload 時，才選擇
+縮放或重新編碼：
+
+```bash
+svgconverter photo.jpg --max-width 1600 --jpeg-quality 82
+svgconverter illustration.png --png-compress-level 9 --optimize-png
+```
+
+`--max-width` 與 `--max-height` 只會縮小，不會放大，且保留長寬比。`--jpeg-quality`
+僅套用於 JPEG；`--png-compress-level` 與 `--optimize-png` 僅套用於 PNG，所以混合格式批次
+可安全使用同一組選項。若縮放 JPEG 時未指定 quality，會使用 95。CLI 會在每次轉換或批次摘要中
+顯示輸入、嵌入點陣與 SVG 的大小。這些選項只適用於 `embed` 模式。
+
 ## Python API
 
 ```python
-from svgconverter import SVGConverter, convert_file, convert_paths
+from svgconverter import (
+    EmbedOptions,
+    SVGConverter,
+    convert_file,
+    convert_file_with_metrics,
+    convert_paths,
+)
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
@@ -80,12 +101,20 @@ convert_file("logo.png", "logo.svg", mode="vectorize")
 converter = SVGConverter(overwrite=True)
 result = converter.convert_directory("./images", "./svg-output", recursive=True)
 batch = convert_paths(["logo.png", "photo.jpg"], "./svg-output")
+metric = convert_file_with_metrics(
+    "photo.jpg",
+    "photo.svg",
+    embed_options=EmbedOptions(max_width=1600, jpeg_quality=82),
+)
 print(result.success_count, result.skipped_count, result.failure_count)
+print(metric.input_bytes, metric.embedded_raster_bytes, metric.svg_bytes)
 ```
 
 `convert_file()` 會回傳輸出 `pathlib.Path`。資料夾轉換則回傳 `BatchResult`，其中包含成功檔案與
 逐檔錯誤，單一壞檔不會使整批工作中斷。`convert_paths()` 可接收檔案與資料夾的混合輸入；
-批次既有輸出預設列為略過，指定 `overwrite=True` 才會覆寫。
+批次既有輸出預設列為略過，指定 `overwrite=True` 才會覆寫。`EmbedOptions` 為 opt-in；未設定時
+embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `BatchResult.metrics` 會回報來源、
+嵌入點陣與 SVG 的 byte 大小。
 
 ## GUI
 

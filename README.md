@@ -73,10 +73,33 @@ Supported inputs are PNG, JPG, JPEG, WebP, BMP, TIF, and TIFF (including
 upper-case extensions). Run `svgconverter --help` for all options. Vectorize
 mode requires the optional `vectorize` extra.
 
+### Embed optimization
+
+Embed mode preserves the source raster bytes by default. Opt in to resizing or
+re-encoding only when a smaller raster payload is worth the quality trade-off:
+
+```bash
+svgconverter photo.jpg --max-width 1600 --jpeg-quality 82
+svgconverter illustration.png --png-compress-level 9 --optimize-png
+```
+
+`--max-width` and `--max-height` only downscale and preserve aspect ratio.
+`--jpeg-quality` applies only to JPEG inputs; `--png-compress-level` and
+`--optimize-png` apply only to PNG inputs, so the same batch options are safe
+for mixed formats. A resized JPEG without an explicit quality uses 95. The CLI
+reports input, embedded-raster, and SVG sizes after each conversion or batch.
+These controls apply to `embed` mode only.
+
 ## Python API
 
 ```python
-from svgconverter import SVGConverter, convert_file, convert_paths
+from svgconverter import (
+    EmbedOptions,
+    SVGConverter,
+    convert_file,
+    convert_file_with_metrics,
+    convert_paths,
+)
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
@@ -84,14 +107,22 @@ convert_file("logo.png", "logo.svg", mode="vectorize")
 converter = SVGConverter(overwrite=True)
 result = converter.convert_directory("./images", "./svg-output", recursive=True)
 batch = convert_paths(["logo.png", "photo.jpg"], "./svg-output")
+metric = convert_file_with_metrics(
+    "photo.jpg",
+    "photo.svg",
+    embed_options=EmbedOptions(max_width=1600, jpeg_quality=82),
+)
 print(result.success_count, result.skipped_count, result.failure_count)
+print(metric.input_bytes, metric.embedded_raster_bytes, metric.svg_bytes)
 ```
 
 `convert_file()` returns the output `pathlib.Path`. Directory conversion returns
 a `BatchResult` containing successful output paths and per-file failures, so a
 bad image does not abort the entire batch. `convert_paths()` accepts a mix of
 files and directories; existing batch outputs are recorded as skips unless
-`overwrite=True` is selected.
+`overwrite=True` is selected. `EmbedOptions` is opt-in; without it, embed mode
+uses the original raster bytes. `convert_file_with_metrics()` and
+`BatchResult.metrics` report source, embedded-raster, and SVG byte sizes.
 
 ## GUI
 

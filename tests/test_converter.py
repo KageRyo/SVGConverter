@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+from io import BytesIO
 from pathlib import Path
 
 import pytest
@@ -8,6 +10,7 @@ from PIL import Image
 import svgconverter.converter as converter_module
 from svgconverter import (
     ConversionError,
+    EmbedOptions,
     InputPathError,
     OutputCollisionError,
     OutputExistsError,
@@ -17,15 +20,27 @@ from svgconverter import (
     VectorizeOptions,
     convert_directory,
     convert_file,
+    convert_file_with_metrics,
     convert_paths,
 )
 
 
-def create_image(path: Path, image_format: str, size: tuple[int, int] = (3, 2)) -> Path:
+def create_image(
+    path: Path,
+    image_format: str,
+    size: tuple[int, int] = (3, 2),
+    **save_kwargs: object,
+) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     image = Image.new("RGB", size, color=(25, 50, 75))
-    image.save(path, format=image_format)
+    image.save(path, format=image_format, **save_kwargs)
     return path
+
+
+def embedded_raster_bytes(output_path: Path) -> bytes:
+    document = output_path.read_text(encoding="utf-8")
+    encoded_data = document.split("base64,", maxsplit=1)[1].split('"', maxsplit=1)[0]
+    return base64.b64decode(encoded_data)
 
 
 def test_convert_png_embeds_correct_mime_and_dimensions(tmp_path: Path) -> None:
@@ -37,6 +52,108 @@ def test_convert_png_embeds_correct_mime_and_dimensions(tmp_path: Path) -> None:
     assert output == tmp_path / "sample.svg"
     assert 'width="3" height="2"' in document
     assert "data:image/png;base64," in document
+
+
+def test_default_embed_preserves_original_raster_bytes_and_reports_sizes(
+    tmp_path: Path,
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG", (12, 8))
+
+    metric = convert_file_with_metrics(source)
+
+    assert embedded_raster_bytes(metric.output_path) == source.read_bytes()
+    assert metric.input_bytes == source.stat().st_size
+    assert metric.embedded_raster_bytes == source.stat().st_size
+    assert metric.svg_bytes == metric.output_path.stat().st_size
+
+
+def test_embed_downscales_with_preserved_aspect_ratio(tmp_path: Path) -> None:
+    source = create_image(tmp_path / "source.png", "PNG", (200, 100))
+
+    metric = convert_file_with_metrics(
+        source,
+        tmp_path / "result.svg",
+        embed_options=EmbedOptions(max_width=150, max_height=40),
+    )
+
+    with Image.open(BytesIO(embedded_raster_bytes(metric.output_path))) as image:
+        assert image.size == (80, 40)
+    document = metric.output_path.read_text(encoding="utf-8")
+    assert 'width="80" height="40"' in document
+    assert metric.embedded_raster_bytes is not None
+    assert metric.embedded_raster_bytes < metric.input_bytes
+
+
+def test_embed_downscale_options_do_not_upscale_or_reencode_smaller_images(
+    tmp_path: Path,
+) -> None:
+    source = create_image(tmp_path / "small.png", "PNG", (12, 8))
+
+    metric = convert_file_with_metrics(
+        source, embed_options=EmbedOptions(max_width=100, max_height=100)
+    )
+
+    assert embedded_raster_bytes(metric.output_path) == source.read_bytes()
+    assert metric.embedded_raster_bytes == metric.input_bytes
+
+
+def test_embed_jpeg_quality_reencodes_only_when_requested(tmp_path: Path) -> None:
+    source = tmp_path / "source.jpg"
+    Image.effect_noise((180, 120), 100).convert("RGB").save(source, quality=95)
+
+    low_quality = convert_file_with_metrics(
+        source,
+        tmp_path / "low.svg",
+        embed_options=EmbedOptions(jpeg_quality=20),
+    )
+    high_quality = convert_file_with_metrics(
+        source,
+        tmp_path / "high.svg",
+        embed_options=EmbedOptions(jpeg_quality=90),
+    )
+
+    assert low_quality.embedded_raster_bytes is not None
+    assert high_quality.embedded_raster_bytes is not None
+    assert low_quality.embedded_raster_bytes < high_quality.embedded_raster_bytes
+    with Image.open(BytesIO(embedded_raster_bytes(low_quality.output_path))) as image:
+        assert image.format == "JPEG"
+        assert image.size == (180, 120)
+
+
+def test_embed_downscale_reencodes_jpeg_at_high_default_quality(tmp_path: Path) -> None:
+    source = create_image(tmp_path / "source.jpg", "JPEG", (120, 60), quality=91)
+
+    metric = convert_file_with_metrics(
+        source,
+        tmp_path / "result.svg",
+        embed_options=EmbedOptions(max_width=60),
+    )
+
+    with Image.open(BytesIO(embedded_raster_bytes(metric.output_path))) as image:
+        assert image.format == "JPEG"
+        assert image.size == (60, 30)
+
+
+def test_embed_png_compression_reencodes_pixels_without_changing_dimensions(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "source.png"
+    image = Image.effect_noise((180, 120), 100).convert("RGB")
+    image.save(source, compress_level=0)
+
+    metric = convert_file_with_metrics(
+        source,
+        tmp_path / "compressed.svg",
+        embed_options=EmbedOptions(png_compress_level=9, optimize_png=True),
+    )
+
+    embedded = embedded_raster_bytes(metric.output_path)
+    assert metric.embedded_raster_bytes == len(embedded)
+    assert metric.embedded_raster_bytes < metric.input_bytes
+    with Image.open(source) as original, Image.open(BytesIO(embedded)) as compressed:
+        assert compressed.format == "PNG"
+        assert compressed.size == original.size
+        assert compressed.tobytes() == original.tobytes()
 
 
 @pytest.mark.parametrize("suffix", [".jpg", ".jpeg", ".JPG"])
@@ -213,6 +330,14 @@ def test_convert_paths_converts_multiple_input_files_to_one_output_directory(
     assert result.failure_count == 0
     assert (output_directory / "first.svg").is_file()
     assert (output_directory / "second.svg").is_file()
+    assert len(result.metrics) == 2
+    assert result.total_input_bytes == sum(
+        metric.input_bytes for metric in result.metrics
+    )
+    assert result.total_embedded_raster_bytes == sum(
+        metric.embedded_raster_bytes or 0 for metric in result.metrics
+    )
+    assert result.total_svg_bytes == sum(metric.svg_bytes for metric in result.metrics)
 
 
 def test_convert_paths_keeps_multiple_directory_trees_separate(
@@ -282,6 +407,36 @@ def test_unknown_conversion_mode_is_rejected(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="either 'embed' or 'vectorize'"):
         convert_file(source, mode="unknown")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"max_width": 0}, "max_width must be a positive integer"),
+        ({"max_height": -1}, "max_height must be a positive integer"),
+        ({"jpeg_quality": 96}, "jpeg_quality must be between 1 and 95"),
+        (
+            {"png_compress_level": 10},
+            "png_compress_level must be between 0 and 9",
+        ),
+    ],
+)
+def test_embed_options_validate_requested_optimization_values(
+    kwargs: dict[str, int], message: str
+) -> None:
+    with pytest.raises(ValueError, match=message):
+        EmbedOptions(**kwargs)
+
+
+def test_embed_options_are_rejected_in_vectorize_mode(tmp_path: Path) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+
+    with pytest.raises(ValueError, match="embed_options can only"):
+        convert_file(
+            source,
+            mode="vectorize",
+            embed_options=EmbedOptions(max_width=100),
+        )
 
 
 def test_vectorize_mode_explains_missing_optional_dependency(

@@ -11,6 +11,7 @@ import base64
 import importlib
 from collections.abc import Iterable
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from typing import Literal
 
@@ -59,6 +60,52 @@ class ConversionError(SVGConverterError):
 
 class VectorizationDependencyError(SVGConverterError):
     """Raised when vectorize mode is used without its optional backend."""
+
+
+@dataclass(frozen=True)
+class EmbedOptions:
+    """Opt-in preprocessing options for raster bytes embedded in an SVG.
+
+    Images are left byte-for-byte unchanged when all options use their defaults.
+    ``max_width`` and ``max_height`` only downscale and always preserve the
+    aspect ratio. JPEG and PNG options apply only to their respective formats,
+    which makes a single batch configuration safe for mixed input files.
+    """
+
+    max_width: int | None = None
+    max_height: int | None = None
+    jpeg_quality: int | None = None
+    png_compress_level: int | None = None
+    optimize_png: bool = False
+
+    def __post_init__(self) -> None:
+        for name, value in (
+            ("max_width", self.max_width),
+            ("max_height", self.max_height),
+        ):
+            if value is not None and value <= 0:
+                raise ValueError(f"{name} must be a positive integer.")
+        if self.jpeg_quality is not None and not 1 <= self.jpeg_quality <= 95:
+            raise ValueError("jpeg_quality must be between 1 and 95.")
+        if (
+            self.png_compress_level is not None
+            and not 0 <= self.png_compress_level <= 9
+        ):
+            raise ValueError("png_compress_level must be between 0 and 9.")
+
+    @property
+    def is_enabled(self) -> bool:
+        """Return whether any preprocessing or re-encoding was requested."""
+
+        return any(
+            (
+                self.max_width is not None,
+                self.max_height is not None,
+                self.jpeg_quality is not None,
+                self.png_compress_level is not None,
+                self.optimize_png,
+            )
+        )
 
 
 @dataclass(frozen=True)
@@ -121,12 +168,24 @@ class ConversionSkip:
 
 
 @dataclass(frozen=True)
+class ConversionMetrics:
+    """Input, embedded-raster, and SVG sizes for one converted item."""
+
+    input_path: Path
+    output_path: Path
+    input_bytes: int
+    svg_bytes: int
+    embedded_raster_bytes: int | None
+
+
+@dataclass(frozen=True)
 class BatchResult:
     """Successful, skipped, and failed items from a batch conversion."""
 
     converted: tuple[Path, ...]
     failed: tuple[ConversionFailure, ...]
     skipped: tuple[ConversionSkip, ...] = ()
+    metrics: tuple[ConversionMetrics, ...] = ()
 
     @property
     def success_count(self) -> int:
@@ -146,10 +205,40 @@ class BatchResult:
 
         return len(self.skipped)
 
+    @property
+    def total_input_bytes(self) -> int:
+        """Return the total size of successfully converted source files."""
+
+        return sum(metric.input_bytes for metric in self.metrics)
+
+    @property
+    def total_svg_bytes(self) -> int:
+        """Return the total size of successfully written SVG files."""
+
+        return sum(metric.svg_bytes for metric in self.metrics)
+
+    @property
+    def total_embedded_raster_bytes(self) -> int | None:
+        """Return embedded-raster bytes, or ``None`` when nothing was embedded."""
+
+        embedded_sizes = [
+            metric.embedded_raster_bytes
+            for metric in self.metrics
+            if metric.embedded_raster_bytes is not None
+        ]
+        return sum(embedded_sizes) if embedded_sizes else None
+
 
 def _validate_mode(mode: ConversionMode) -> None:
     if mode not in ("embed", "vectorize"):
         raise ValueError("mode must be either 'embed' or 'vectorize'.")
+
+
+def _validate_embed_options(
+    mode: ConversionMode, embed_options: EmbedOptions | None
+) -> None:
+    if mode == "vectorize" and embed_options is not None and embed_options.is_enabled:
+        raise ValueError("embed_options can only be used with mode='embed'.")
 
 
 def _validate_input(input_path: Path) -> None:
@@ -193,13 +282,106 @@ def _svg_document(*, data_uri: str, width: int, height: int) -> str:
     )
 
 
-def _embed_image(source: Path, destination: Path) -> None:
+def _target_dimensions(
+    width: int, height: int, embed_options: EmbedOptions
+) -> tuple[int, int]:
+    """Return downscaled dimensions that honour every configured maximum."""
+
+    scale_limits = [1.0]
+    if embed_options.max_width is not None:
+        scale_limits.append(embed_options.max_width / width)
+    if embed_options.max_height is not None:
+        scale_limits.append(embed_options.max_height / height)
+    scale = min(scale_limits)
+    return max(1, round(width * scale)), max(1, round(height * scale))
+
+
+def _image_save_kwargs(
+    image: Image.Image, image_format: str, embed_options: EmbedOptions
+) -> dict[str, object]:
+    """Return format-specific Pillow options for requested raster optimization."""
+
+    save_kwargs: dict[str, object] = {}
+    if icc_profile := image.info.get("icc_profile"):
+        save_kwargs["icc_profile"] = icc_profile
+    if exif := image.info.get("exif"):
+        save_kwargs["exif"] = exif
+
+    if image_format == "JPEG":
+        if embed_options.jpeg_quality is None:
+            save_kwargs["quality"] = 95
+        else:
+            save_kwargs["quality"] = embed_options.jpeg_quality
+    elif image_format == "PNG":
+        if embed_options.png_compress_level is not None:
+            save_kwargs["compress_level"] = embed_options.png_compress_level
+        if embed_options.optimize_png:
+            save_kwargs["optimize"] = True
+    return save_kwargs
+
+
+def _embedded_raster(
+    source: Path, embed_options: EmbedOptions | None
+) -> tuple[bytes, int, int, str]:
+    """Return source bytes or explicitly requested optimized raster bytes."""
+
     width, height, mime_type = _read_image_metadata(source)
-    image_data = source.read_bytes()
+    source_data = source.read_bytes()
+    if embed_options is None or not embed_options.is_enabled:
+        return source_data, width, height, mime_type
+
+    try:
+        with Image.open(source) as image:
+            image_format = image.format
+            if image_format is None:
+                raise UnsupportedImageError(
+                    f"Unsupported image format in {source}: unknown"
+                )
+            target_width, target_height = _target_dimensions(
+                image.width, image.height, embed_options
+            )
+            should_resize = (target_width, target_height) != image.size
+            should_reencode = (
+                should_resize
+                or (image_format == "JPEG" and embed_options.jpeg_quality is not None)
+                or (
+                    image_format == "PNG"
+                    and (
+                        embed_options.png_compress_level is not None
+                        or embed_options.optimize_png
+                    )
+                )
+            )
+            if not should_reencode:
+                return source_data, width, height, mime_type
+
+            image.load()
+            if should_resize:
+                image = image.resize(
+                    (target_width, target_height), Image.Resampling.LANCZOS
+                )
+            data = BytesIO()
+            image.save(
+                data,
+                format=image_format,
+                **_image_save_kwargs(image, image_format, embed_options),
+            )
+            return data.getvalue(), image.width, image.height, mime_type
+    except UnsupportedImageError:
+        raise
+    except (OSError, ValueError) as error:
+        raise ConversionError(f"Cannot optimize image {source}: {error}") from error
+
+
+def _embed_image(
+    source: Path, destination: Path, embed_options: EmbedOptions | None
+) -> int:
+    image_data, width, height, mime_type = _embedded_raster(source, embed_options)
     data_uri = f"data:{mime_type};base64,{base64.b64encode(image_data).decode('ascii')}"
     destination.write_text(
         _svg_document(data_uri=data_uri, width=width, height=height), encoding="utf-8"
     )
+    return len(image_data)
 
 
 def _load_vtracer() -> object:
@@ -265,6 +447,7 @@ def _convert_candidates(
     overwrite: bool,
     mode: ConversionMode,
     vectorize_options: VectorizeOptions | None,
+    embed_options: EmbedOptions | None,
     initial_failures: Iterable[ConversionFailure] = (),
 ) -> BatchResult:
     """Convert planned source/output pairs with predictable batch semantics."""
@@ -287,6 +470,7 @@ def _convert_candidates(
 
     converted: list[Path] = []
     skipped: list[ConversionSkip] = []
+    metrics: list[ConversionMetrics] = []
     failed = list(initial_failures)
     for source, destination in unique_candidates:
         if destination in colliding_destinations:
@@ -323,43 +507,50 @@ def _convert_candidates(
             continue
 
         try:
-            converted.append(
-                convert_file(
-                    source,
-                    destination,
-                    overwrite=overwrite,
-                    mode=mode,
-                    vectorize_options=vectorize_options,
-                )
+            metric = convert_file_with_metrics(
+                source,
+                destination,
+                overwrite=overwrite,
+                mode=mode,
+                vectorize_options=vectorize_options,
+                embed_options=embed_options,
             )
+            converted.append(metric.output_path)
+            metrics.append(metric)
         except SVGConverterError as error:
             failed.append(ConversionFailure(input_path=source, error=error))
 
     return BatchResult(
-        converted=tuple(converted), failed=tuple(failed), skipped=tuple(skipped)
+        converted=tuple(converted),
+        failed=tuple(failed),
+        skipped=tuple(skipped),
+        metrics=tuple(metrics),
     )
 
 
-def convert_file(
+def convert_file_with_metrics(
     input_path: str | Path,
     output_path: str | Path | None = None,
     *,
     overwrite: bool = False,
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
-) -> Path:
-    """Convert one supported raster image and return its output SVG path.
+    embed_options: EmbedOptions | None = None,
+) -> ConversionMetrics:
+    """Convert one image and return the result path plus byte-size metrics.
 
     ``output_path`` defaults to the input filename with an ``.svg`` suffix.
     Parent directories for an explicit output path are created automatically.
     Existing outputs are preserved unless ``overwrite=True`` is provided.
 
     ``mode="embed"`` stores the original raster bytes in an SVG ``<image>``
-    element. ``mode="vectorize"`` traces the image into vector paths and
-    requires the ``vectorize`` optional dependency.
+    element unless enabled ``embed_options`` request preprocessing. ``mode="vectorize"``
+    traces the image into vector paths and requires the ``vectorize`` optional
+    dependency.
     """
 
     _validate_mode(mode)
+    _validate_embed_options(mode, embed_options)
     source = Path(input_path)
     _validate_input(source)
     destination = (
@@ -376,15 +567,46 @@ def convert_file(
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
         if mode == "embed":
-            _embed_image(source, destination)
+            embedded_raster_bytes = _embed_image(source, destination, embed_options)
         else:
             _vectorize_image(
                 source, destination, vectorize_options or VectorizeOptions()
             )
+            embedded_raster_bytes = None
+        return ConversionMetrics(
+            input_path=source,
+            output_path=destination,
+            input_bytes=source.stat().st_size,
+            svg_bytes=destination.stat().st_size,
+            embedded_raster_bytes=embedded_raster_bytes,
+        )
     except OSError as error:
         raise ConversionError(f"Cannot write SVG {destination}: {error}") from error
 
-    return destination
+
+def convert_file(
+    input_path: str | Path,
+    output_path: str | Path | None = None,
+    *,
+    overwrite: bool = False,
+    mode: ConversionMode = "embed",
+    vectorize_options: VectorizeOptions | None = None,
+    embed_options: EmbedOptions | None = None,
+) -> Path:
+    """Convert one supported raster image and return its output SVG path.
+
+    Use :func:`convert_file_with_metrics` when the input, embedded-raster, and
+    SVG byte sizes are also needed.
+    """
+
+    return convert_file_with_metrics(
+        input_path,
+        output_path,
+        overwrite=overwrite,
+        mode=mode,
+        vectorize_options=vectorize_options,
+        embed_options=embed_options,
+    ).output_path
 
 
 def convert_directory(
@@ -395,6 +617,7 @@ def convert_directory(
     recursive: bool = False,
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
+    embed_options: EmbedOptions | None = None,
 ) -> BatchResult:
     """Convert supported images in one directory, optionally including children.
 
@@ -406,6 +629,7 @@ def convert_directory(
     """
 
     _validate_mode(mode)
+    _validate_embed_options(mode, embed_options)
     source_directory = Path(directory)
     if not source_directory.exists():
         raise InputPathError(f"Input directory does not exist: {source_directory}")
@@ -423,6 +647,7 @@ def convert_directory(
         overwrite=overwrite,
         mode=mode,
         vectorize_options=vectorize_options,
+        embed_options=embed_options,
     )
 
 
@@ -434,6 +659,7 @@ def convert_paths(
     recursive: bool = False,
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
+    embed_options: EmbedOptions | None = None,
 ) -> BatchResult:
     """Convert multiple image files and directories in one batch.
 
@@ -449,6 +675,7 @@ def convert_paths(
     """
 
     _validate_mode(mode)
+    _validate_embed_options(mode, embed_options)
     source_paths = tuple(Path(input_path) for input_path in input_paths)
     if not source_paths:
         raise InputPathError("At least one input file or directory is required.")
@@ -493,6 +720,7 @@ def convert_paths(
         overwrite=overwrite,
         mode=mode,
         vectorize_options=vectorize_options,
+        embed_options=embed_options,
         initial_failures=initial_failures,
     )
 
@@ -507,12 +735,15 @@ class SVGConverter:
         recursive: bool = False,
         mode: ConversionMode = "embed",
         vectorize_options: VectorizeOptions | None = None,
+        embed_options: EmbedOptions | None = None,
     ) -> None:
         _validate_mode(mode)
+        _validate_embed_options(mode, embed_options)
         self.overwrite = overwrite
         self.recursive = recursive
         self.mode = mode
         self.vectorize_options = vectorize_options
+        self.embed_options = embed_options
 
     def convert_file(
         self, input_path: str | Path, output_path: str | Path | None = None
@@ -525,6 +756,7 @@ class SVGConverter:
             overwrite=self.overwrite,
             mode=self.mode,
             vectorize_options=self.vectorize_options,
+            embed_options=self.embed_options,
         )
 
     def convert_directory(
@@ -543,6 +775,7 @@ class SVGConverter:
             recursive=self.recursive if recursive is None else recursive,
             mode=self.mode,
             vectorize_options=self.vectorize_options,
+            embed_options=self.embed_options,
         )
 
     def convert_paths(
@@ -561,4 +794,5 @@ class SVGConverter:
             recursive=self.recursive if recursive is None else recursive,
             mode=self.mode,
             vectorize_options=self.vectorize_options,
+            embed_options=self.embed_options,
         )
