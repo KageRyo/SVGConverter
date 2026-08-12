@@ -7,6 +7,16 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+### Added
+
+- GUI file selection, non-blocking batch progress, cancellation, and per-file
+  failure details.
+
+### Changed
+
+- Batch API callers can receive per-file progress updates and request a clean
+  cancellation between files.
+
 ## 1.4.0 - 2026-08-12
 
 ### Added

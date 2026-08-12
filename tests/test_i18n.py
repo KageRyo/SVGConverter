@@ -12,6 +12,24 @@ def test_bundled_translations_have_all_supported_locales() -> None:
     translations = load_translations()
 
     assert set(translations) == {"zh_TW", "en_US", "ja_JP"}
+    assert {frozenset(text) for text in translations.values()} == {
+        frozenset(
+            {
+                "name",
+                "select_files",
+                "select_folder",
+                "cancel",
+                "ready",
+                "starting",
+                "progress",
+                "cancelling",
+                "done",
+                "cancelled",
+                "errors_title",
+                "error",
+            }
+        )
+    }
     assert locale_for_display_name("English", translations) == "en_US"
     assert locale_for_display_name("日本語", translations) == "ja_JP"
 

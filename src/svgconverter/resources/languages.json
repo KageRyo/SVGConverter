@@ -1,17 +1,44 @@
 {
   "zh_TW": {
     "name": "正體中文",
-    "select": "選擇資料夾",
-    "done": "轉換完成：已轉換 {converted} 個檔案；失敗 {failed} 個。"
+    "select_files": "選擇檔案",
+    "select_folder": "選擇資料夾",
+    "cancel": "取消轉換",
+    "ready": "選擇檔案或資料夾以開始轉換。",
+    "starting": "正在準備轉換…",
+    "progress": "正在轉換 {completed}/{total}：{current}\n已轉換 {converted}；略過 {skipped}；失敗 {failed}。",
+    "cancelling": "正在於目前檔案完成後取消…",
+    "done": "轉換完成：已轉換 {converted} 個；略過 {skipped} 個；失敗 {failed} 個。",
+    "cancelled": "已取消轉換：已轉換 {converted} 個；略過 {skipped} 個；失敗 {failed} 個。",
+    "errors_title": "部分檔案無法轉換",
+    "error": "無法開始轉換。"
   },
   "en_US": {
     "name": "English",
-    "select": "Select Folder",
-    "done": "Conversion complete: {converted} converted; {failed} failed."
+    "select_files": "Select Files",
+    "select_folder": "Select Folder",
+    "cancel": "Cancel Conversion",
+    "ready": "Select files or a folder to start converting.",
+    "starting": "Preparing conversion…",
+    "progress": "Converting {completed}/{total}: {current}\n{converted} converted; {skipped} skipped; {failed} failed.",
+    "cancelling": "Cancelling after the current file…",
+    "done": "Conversion complete: {converted} converted; {skipped} skipped; {failed} failed.",
+    "cancelled": "Conversion cancelled: {converted} converted; {skipped} skipped; {failed} failed.",
+    "errors_title": "Some files could not be converted",
+    "error": "Could not start conversion."
   },
   "ja_JP": {
     "name": "日本語",
-    "select": "フォルダを選択",
-    "done": "変換完了：{converted} 件変換、{failed} 件失敗。"
+    "select_files": "ファイルを選択",
+    "select_folder": "フォルダを選択",
+    "cancel": "変換をキャンセル",
+    "ready": "ファイルまたはフォルダを選択して変換を開始します。",
+    "starting": "変換を準備しています…",
+    "progress": "変換中 {completed}/{total}: {current}\n変換済み {converted}、スキップ {skipped}、失敗 {failed}。",
+    "cancelling": "現在のファイルの完了後にキャンセルします…",
+    "done": "変換完了：変換済み {converted}、スキップ {skipped}、失敗 {failed}。",
+    "cancelled": "変換をキャンセルしました：変換済み {converted}、スキップ {skipped}、失敗 {failed}。",
+    "errors_title": "一部のファイルを変換できませんでした",
+    "error": "変換を開始できませんでした。"
   }
 }

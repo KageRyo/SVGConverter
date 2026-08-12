@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import base64
 import importlib
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from io import BytesIO
 from pathlib import Path
@@ -179,6 +179,26 @@ class ConversionMetrics:
 
 
 @dataclass(frozen=True)
+class ConversionProgress:
+    """One completed item in a batch conversion.
+
+    ``completed`` and ``total`` describe only the planned source/output pairs.
+    Invalid explicit paths are still reported in the final :class:`BatchResult`.
+    """
+
+    input_path: Path
+    completed: int
+    total: int
+    converted: int
+    skipped: int
+    failed: int
+
+
+ProgressCallback = Callable[[ConversionProgress], None]
+CancelCallback = Callable[[], bool]
+
+
+@dataclass(frozen=True)
 class BatchResult:
     """Successful, skipped, and failed items from a batch conversion."""
 
@@ -186,6 +206,7 @@ class BatchResult:
     failed: tuple[ConversionFailure, ...]
     skipped: tuple[ConversionSkip, ...] = ()
     metrics: tuple[ConversionMetrics, ...] = ()
+    cancelled: bool = False
 
     @property
     def success_count(self) -> int:
@@ -448,6 +469,8 @@ def _convert_candidates(
     mode: ConversionMode,
     vectorize_options: VectorizeOptions | None,
     embed_options: EmbedOptions | None,
+    progress_callback: ProgressCallback | None = None,
+    should_cancel: CancelCallback | None = None,
     initial_failures: Iterable[ConversionFailure] = (),
 ) -> BatchResult:
     """Convert planned source/output pairs with predictable batch semantics."""
@@ -472,7 +495,12 @@ def _convert_candidates(
     skipped: list[ConversionSkip] = []
     metrics: list[ConversionMetrics] = []
     failed = list(initial_failures)
+    completed = 0
+    cancelled = False
     for source, destination in unique_candidates:
+        if should_cancel is not None and should_cancel():
+            cancelled = True
+            break
         if destination in colliding_destinations:
             colliding_sources = ", ".join(
                 str(candidate) for candidate in sources_by_destination[destination]
@@ -486,17 +514,14 @@ def _convert_candidates(
                     ),
                 )
             )
-            continue
-
-        if destination.exists() and destination.is_dir():
+        elif destination.exists() and destination.is_dir():
             failed.append(
                 ConversionFailure(
                     input_path=source,
                     error=InputPathError(f"Output path is a directory: {destination}"),
                 )
             )
-            continue
-        if destination.exists() and not overwrite:
+        elif destination.exists() and not overwrite:
             skipped.append(
                 ConversionSkip(
                     input_path=source,
@@ -504,27 +529,40 @@ def _convert_candidates(
                     reason="output already exists",
                 )
             )
-            continue
+        else:
+            try:
+                metric = convert_file_with_metrics(
+                    source,
+                    destination,
+                    overwrite=overwrite,
+                    mode=mode,
+                    vectorize_options=vectorize_options,
+                    embed_options=embed_options,
+                )
+                converted.append(metric.output_path)
+                metrics.append(metric)
+            except SVGConverterError as error:
+                failed.append(ConversionFailure(input_path=source, error=error))
 
-        try:
-            metric = convert_file_with_metrics(
-                source,
-                destination,
-                overwrite=overwrite,
-                mode=mode,
-                vectorize_options=vectorize_options,
-                embed_options=embed_options,
+        completed += 1
+        if progress_callback is not None:
+            progress_callback(
+                ConversionProgress(
+                    input_path=source,
+                    completed=completed,
+                    total=len(unique_candidates),
+                    converted=len(converted),
+                    skipped=len(skipped),
+                    failed=len(failed),
+                )
             )
-            converted.append(metric.output_path)
-            metrics.append(metric)
-        except SVGConverterError as error:
-            failed.append(ConversionFailure(input_path=source, error=error))
 
     return BatchResult(
         converted=tuple(converted),
         failed=tuple(failed),
         skipped=tuple(skipped),
         metrics=tuple(metrics),
+        cancelled=cancelled,
     )
 
 
@@ -618,6 +656,8 @@ def convert_directory(
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
     embed_options: EmbedOptions | None = None,
+    progress_callback: ProgressCallback | None = None,
+    should_cancel: CancelCallback | None = None,
 ) -> BatchResult:
     """Convert supported images in one directory, optionally including children.
 
@@ -625,7 +665,8 @@ def convert_directory(
     attempted independently, so a corrupt image does not stop the batch. When
     ``recursive=True`` and ``output_dir`` is supplied, the output mirrors the
     source directory structure. Existing SVGs are skipped unless
-    ``overwrite=True`` is supplied.
+    ``overwrite=True`` is supplied. ``progress_callback`` is called after each
+    processed input, while ``should_cancel`` can stop before the next input.
     """
 
     _validate_mode(mode)
@@ -648,6 +689,8 @@ def convert_directory(
         mode=mode,
         vectorize_options=vectorize_options,
         embed_options=embed_options,
+        progress_callback=progress_callback,
+        should_cancel=should_cancel,
     )
 
 
@@ -660,6 +703,8 @@ def convert_paths(
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
     embed_options: EmbedOptions | None = None,
+    progress_callback: ProgressCallback | None = None,
+    should_cancel: CancelCallback | None = None,
 ) -> BatchResult:
     """Convert multiple image files and directories in one batch.
 
@@ -672,6 +717,10 @@ def convert_paths(
     Existing output SVGs are returned as skips unless ``overwrite=True``.
     Explicit file inputs with unsupported extensions are reported as failures;
     unsupported files discovered inside directories are ignored.
+
+    ``progress_callback`` is called after each processed input. Return ``True``
+    from ``should_cancel`` to finish the current item and stop before the next;
+    the returned result then has ``cancelled=True``.
     """
 
     _validate_mode(mode)
@@ -721,6 +770,8 @@ def convert_paths(
         mode=mode,
         vectorize_options=vectorize_options,
         embed_options=embed_options,
+        progress_callback=progress_callback,
+        should_cancel=should_cancel,
         initial_failures=initial_failures,
     )
 
@@ -765,6 +816,8 @@ class SVGConverter:
         output_dir: str | Path | None = None,
         *,
         recursive: bool | None = None,
+        progress_callback: ProgressCallback | None = None,
+        should_cancel: CancelCallback | None = None,
     ) -> BatchResult:
         """Convert one directory using this instance's configuration."""
 
@@ -776,6 +829,8 @@ class SVGConverter:
             mode=self.mode,
             vectorize_options=self.vectorize_options,
             embed_options=self.embed_options,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
         )
 
     def convert_paths(
@@ -784,6 +839,8 @@ class SVGConverter:
         output_dir: str | Path | None = None,
         *,
         recursive: bool | None = None,
+        progress_callback: ProgressCallback | None = None,
+        should_cancel: CancelCallback | None = None,
     ) -> BatchResult:
         """Convert multiple files and directories using this configuration."""
 
@@ -795,4 +852,6 @@ class SVGConverter:
             mode=self.mode,
             vectorize_options=self.vectorize_options,
             embed_options=self.embed_options,
+            progress_callback=progress_callback,
+            should_cancel=should_cancel,
         )

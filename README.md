@@ -94,6 +94,7 @@ These controls apply to `embed` mode only.
 
 ```python
 from svgconverter import (
+    ConversionProgress,
     EmbedOptions,
     SVGConverter,
     convert_file,
@@ -106,11 +107,19 @@ convert_file("logo.png", "logo.svg", mode="vectorize")
 
 converter = SVGConverter(overwrite=True)
 result = converter.convert_directory("./images", "./svg-output", recursive=True)
-batch = convert_paths(["logo.png", "photo.jpg"], "./svg-output")
 metric = convert_file_with_metrics(
     "photo.jpg",
     "photo.svg",
     embed_options=EmbedOptions(max_width=1600, jpeg_quality=82),
+)
+
+
+def report(progress: ConversionProgress) -> None:
+    print(progress.completed, progress.total, progress.input_path)
+
+
+batch = convert_paths(
+    ["logo.png", "photo.jpg"], "./svg-output", progress_callback=report
 )
 print(result.success_count, result.skipped_count, result.failure_count)
 print(metric.input_bytes, metric.embedded_raster_bytes, metric.svg_bytes)
@@ -123,6 +132,9 @@ files and directories; existing batch outputs are recorded as skips unless
 `overwrite=True` is selected. `EmbedOptions` is opt-in; without it, embed mode
 uses the original raster bytes. `convert_file_with_metrics()` and
 `BatchResult.metrics` report source, embedded-raster, and SVG byte sizes.
+Use `progress_callback` for each processed item; return `True` from
+`should_cancel` to stop cleanly before the next item. The result then has
+`cancelled=True`.
 
 ## GUI
 
@@ -132,10 +144,12 @@ Install the package and run:
 svgconverter-gui
 ```
 
-The legacy development command `python main.py` starts the same GUI. The GUI
-currently selects a directory and offers Traditional Chinese, English, and
-Japanese. It uses embed mode; vectorize mode is available through the Python
-API and CLI.
+The legacy development command `python main.py` starts the same GUI. Select one
+or more files, or a folder, to convert with visible non-blocking progress and a
+converted/skipped/failed summary. You can cancel between files; any per-file
+errors are shown after the batch without closing the application. The GUI offers
+Traditional Chinese, English, and Japanese and uses embed mode; vectorize mode
+is available through the Python API and CLI.
 
 ## Contributing and license
 

@@ -10,6 +10,7 @@ from PIL import Image
 import svgconverter.converter as converter_module
 from svgconverter import (
     ConversionError,
+    ConversionProgress,
     EmbedOptions,
     InputPathError,
     OutputCollisionError,
@@ -338,6 +339,69 @@ def test_convert_paths_converts_multiple_input_files_to_one_output_directory(
         metric.embedded_raster_bytes or 0 for metric in result.metrics
     )
     assert result.total_svg_bytes == sum(metric.svg_bytes for metric in result.metrics)
+
+
+def test_convert_paths_reports_progress_for_each_processed_input(
+    tmp_path: Path,
+) -> None:
+    first = create_image(tmp_path / "first.png", "PNG")
+    second = create_image(tmp_path / "second.jpg", "JPEG")
+    progress_updates: list[ConversionProgress] = []
+
+    result = convert_paths(
+        [first, second],
+        tmp_path / "output",
+        progress_callback=progress_updates.append,
+    )
+
+    assert result.success_count == 2
+    assert [update.input_path for update in progress_updates] == [first, second]
+    assert [update.completed for update in progress_updates] == [1, 2]
+    assert [update.total for update in progress_updates] == [2, 2]
+    assert progress_updates[-1].converted == 2
+    assert progress_updates[-1].skipped == 0
+    assert progress_updates[-1].failed == 0
+
+
+def test_convert_paths_stops_cleanly_when_cancelled_between_files(
+    tmp_path: Path,
+) -> None:
+    first = create_image(tmp_path / "first.png", "PNG")
+    second = create_image(tmp_path / "second.jpg", "JPEG")
+    progress_updates: list[ConversionProgress] = []
+
+    result = convert_paths(
+        [first, second],
+        tmp_path / "output",
+        progress_callback=progress_updates.append,
+        should_cancel=lambda: bool(progress_updates),
+    )
+
+    assert result.cancelled
+    assert result.success_count == 1
+    assert result.failure_count == 0
+    assert len(progress_updates) == 1
+    assert progress_updates[0].input_path == first
+    assert not (tmp_path / "output" / "second.svg").exists()
+
+
+def test_converter_facade_forwards_batch_progress_and_cancellation(
+    tmp_path: Path,
+) -> None:
+    first = create_image(tmp_path / "first.png", "PNG")
+    second = create_image(tmp_path / "second.jpg", "JPEG")
+    progress_updates: list[ConversionProgress] = []
+
+    result = SVGConverter().convert_paths(
+        [first, second],
+        tmp_path / "output",
+        progress_callback=progress_updates.append,
+        should_cancel=lambda: bool(progress_updates),
+    )
+
+    assert result.cancelled
+    assert result.success_count == 1
+    assert len(progress_updates) == 1
 
 
 def test_convert_paths_keeps_multiple_directory_trees_separate(
