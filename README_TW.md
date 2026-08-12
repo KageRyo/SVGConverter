@@ -88,6 +88,7 @@ svgconverter illustration.png --png-compress-level 9 --optimize-png
 
 ```python
 from svgconverter import (
+    ConversionProgress,
     EmbedOptions,
     SVGConverter,
     convert_file,
@@ -100,11 +101,17 @@ convert_file("logo.png", "logo.svg", mode="vectorize")
 
 converter = SVGConverter(overwrite=True)
 result = converter.convert_directory("./images", "./svg-output", recursive=True)
-batch = convert_paths(["logo.png", "photo.jpg"], "./svg-output")
 metric = convert_file_with_metrics(
     "photo.jpg",
     "photo.svg",
     embed_options=EmbedOptions(max_width=1600, jpeg_quality=82),
+)
+
+def report(progress: ConversionProgress) -> None:
+    print(progress.completed, progress.total, progress.input_path)
+
+batch = convert_paths(
+    ["logo.png", "photo.jpg"], "./svg-output", progress_callback=report
 )
 print(result.success_count, result.skipped_count, result.failure_count)
 print(metric.input_bytes, metric.embedded_raster_bytes, metric.svg_bytes)
@@ -115,6 +122,8 @@ print(metric.input_bytes, metric.embedded_raster_bytes, metric.svg_bytes)
 批次既有輸出預設列為略過，指定 `overwrite=True` 才會覆寫。`EmbedOptions` 為 opt-in；未設定時
 embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `BatchResult.metrics` 會回報來源、
 嵌入點陣與 SVG 的 byte 大小。
+可使用 `progress_callback` 取得每個已處理項目；讓 `should_cancel` 回傳 `True`，即可在下一個檔案
+開始前安全停止，結果的 `cancelled` 會是 `True`。
 
 ## GUI
 
@@ -124,8 +133,10 @@ embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `Bat
 svgconverter-gui
 ```
 
-開發環境仍可用 `python main.py` 啟動相同 GUI。目前 GUI 以資料夾為單位轉換，並支援正體中文、
-English、日文；目前 GUI 使用 embed mode，`vectorize` 模式可從 Python API 與命令列使用。
+開發環境仍可用 `python main.py` 啟動相同 GUI。可選取一或多個檔案，或選擇一個資料夾；轉換時會以
+非阻塞方式顯示進度與已轉換／略過／失敗摘要。可在檔案之間取消，個別檔案錯誤會在批次結束後顯示，
+不會關閉應用程式。GUI 支援正體中文、English、日文；目前 GUI 使用 embed mode，`vectorize` 模式
+可從 Python API 與命令列使用。
 
 ## 貢獻與授權
 
