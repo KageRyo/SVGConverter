@@ -51,26 +51,41 @@ svgconverter logo.png --mode vectorize --vectorize-color-mode binary
 svgconverter ./images --output-dir ./svg-output
 ```
 
-除非指定 `--overwrite`，既有輸出檔不會被覆寫。使用 `svgconverter --help` 可查看完整選項。
-目前支援 PNG、JPG、JPEG、WebP、BMP、TIF、TIFF（含大寫副檔名）；遞迴轉換與影像最佳化
-尚未包含在此版本。
-`vectorize` 模式需要安裝選用的 `vectorize` extra。
+遞迴轉換子資料夾，並在輸出資料夾中保留相對路徑：
+
+```bash
+svgconverter ./images --output-dir ./svg-output --recursive
+```
+
+一次轉換多個明確指定的檔案；支援萬用字元展開的 shell 也可以在執行前展開
+`./images/*.png` 這類 pattern：
+
+```bash
+svgconverter image.png photo.jpg --output-dir ./svg-output
+```
+
+批次轉換時，除非指定 `--overwrite`，既有 SVG 輸出檔會列為略過；最後摘要會列出
+轉換成功、略過與失敗數量。目前支援 PNG、JPG、JPEG、WebP、BMP、TIF、TIFF（含大寫副檔名）。
+使用 `svgconverter --help` 可查看完整選項。`vectorize` 模式需要安裝選用的
+`vectorize` extra。
 
 ## Python API
 
 ```python
-from svgconverter import SVGConverter, convert_file
+from svgconverter import SVGConverter, convert_file, convert_paths
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
 
 converter = SVGConverter(overwrite=True)
-result = converter.convert_directory("./images", "./svg-output")
-print(result.success_count, result.failure_count)
+result = converter.convert_directory("./images", "./svg-output", recursive=True)
+batch = convert_paths(["logo.png", "photo.jpg"], "./svg-output")
+print(result.success_count, result.skipped_count, result.failure_count)
 ```
 
 `convert_file()` 會回傳輸出 `pathlib.Path`。資料夾轉換則回傳 `BatchResult`，其中包含成功檔案與
-逐檔錯誤，單一壞檔不會使整批工作中斷。
+逐檔錯誤，單一壞檔不會使整批工作中斷。`convert_paths()` 可接收檔案與資料夾的混合輸入；
+批次既有輸出預設列為略過，指定 `overwrite=True` 才會覆寫。
 
 ## GUI
 

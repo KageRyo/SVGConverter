@@ -53,28 +53,45 @@ Convert all supported images immediately inside a directory:
 svgconverter ./images --output-dir ./svg-output
 ```
 
-Outputs are never overwritten unless `--overwrite` is supplied. Run
-`svgconverter --help` for all options. Supported inputs are PNG, JPG, JPEG,
-WebP, BMP, TIF, and TIFF (including upper-case extensions); recursive
-conversion and image optimization are not part of the current release.
-Vectorize mode requires the optional `vectorize` extra.
+Include nested directories while retaining their relative paths under the
+output directory:
+
+```bash
+svgconverter ./images --output-dir ./svg-output --recursive
+```
+
+Convert several explicit files in one batch. Shells that support glob expansion
+can also expand patterns such as `./images/*.png` before invoking the command:
+
+```bash
+svgconverter image.png photo.jpg --output-dir ./svg-output
+```
+
+For batch conversion, existing output SVGs are skipped unless `--overwrite` is
+supplied; the final summary reports converted, skipped, and failed items.
+Supported inputs are PNG, JPG, JPEG, WebP, BMP, TIF, and TIFF (including
+upper-case extensions). Run `svgconverter --help` for all options. Vectorize
+mode requires the optional `vectorize` extra.
 
 ## Python API
 
 ```python
-from svgconverter import SVGConverter, convert_file
+from svgconverter import SVGConverter, convert_file, convert_paths
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
 
 converter = SVGConverter(overwrite=True)
-result = converter.convert_directory("./images", "./svg-output")
-print(result.success_count, result.failure_count)
+result = converter.convert_directory("./images", "./svg-output", recursive=True)
+batch = convert_paths(["logo.png", "photo.jpg"], "./svg-output")
+print(result.success_count, result.skipped_count, result.failure_count)
 ```
 
 `convert_file()` returns the output `pathlib.Path`. Directory conversion returns
 a `BatchResult` containing successful output paths and per-file failures, so a
-bad image does not abort the entire batch.
+bad image does not abort the entire batch. `convert_paths()` accepts a mix of
+files and directories; existing batch outputs are recorded as skips unless
+`overwrite=True` is selected.
 
 ## GUI
 

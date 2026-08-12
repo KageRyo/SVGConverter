@@ -9,7 +9,9 @@ from .converter import (
     ConversionError,
     ConversionFailure,
     ConversionMode,
+    ConversionSkip,
     InputPathError,
+    OutputCollisionError,
     OutputExistsError,
     SVGConverter,
     SVGConverterError,
@@ -18,6 +20,7 @@ from .converter import (
     VectorizeOptions,
     convert_directory,
     convert_file,
+    convert_paths,
 )
 
 __all__ = [
@@ -25,8 +28,10 @@ __all__ = [
     "ConversionMode",
     "ConversionError",
     "ConversionFailure",
+    "ConversionSkip",
     "InputPathError",
     "OutputExistsError",
+    "OutputCollisionError",
     "SVGConverter",
     "SVGConverterError",
     "UnsupportedImageError",
@@ -34,6 +39,7 @@ __all__ = [
     "VectorizeOptions",
     "convert_directory",
     "convert_file",
+    "convert_paths",
 ]
 
 __version__ = "1.3.0"
