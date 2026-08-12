@@ -53,9 +53,50 @@ jobs:
       - name: Publish package distributions to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  windows-executable:
+    name: Build Windows executable
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install application and PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install . pyinstaller
+      - name: Build standalone GUI executable
+        run: >
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --name SVGConverter --paths src
+          --collect-data "svgconverter.resources" main.py
+      - name: Smoke test executable startup
+        shell: pwsh
+        run: |
+          $executable = (Resolve-Path "dist/SVGConverter.exe").Path
+          $process = Start-Process -FilePath $executable -PassThru
+          Start-Sleep -Seconds 3
+          if ($process.HasExited) {
+            throw "SVGConverter.exe exited during startup."
+          }
+          Stop-Process -Id $process.Id -Force
+      - name: Name release executable
+        shell: pwsh
+        run: >
+          Move-Item -Path "dist/SVGConverter.exe"
+          -Destination "dist/SVGConverter-$env:GITHUB_REF_NAME-windows-x86_64.exe"
+      - name: Upload Windows executable
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-executable
+          path: dist/*.exe
+          if-no-files-found: error
+
   github-release:
     name: Create GitHub Release
-    needs: pypi-publish
+    needs: [pypi-publish, windows-executable]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -65,7 +106,12 @@ jobs:
         with:
           name: python-distributions
           path: dist/
-      - name: Create release and attach distributions
+      - name: Download Windows executable
+        uses: actions/download-artifact@v8
+        with:
+          name: windows-executable
+          path: dist/
+      - name: Create release and attach assets
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "$GITHUB_REF_NAME" --generate-notes

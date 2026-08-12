@@ -151,6 +151,10 @@ errors are shown after the batch without closing the application. The GUI offers
 Traditional Chinese, English, and Japanese and uses embed mode; vectorize mode
 is available through the Python API and CLI.
 
+For a supported release, Windows users can download the standalone
+`SVGConverter-vX.Y.Z-windows-x86_64.exe` asset from the GitHub Release page; it
+does not require a local Python installation.
+
 ## Contributing and license
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and commit conventions.
