@@ -12,6 +12,11 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 - GUI controls for embed/vectorize modes, output directories, overwrite and
   recursive conversion, plus embed optimization and common vectorize options.
 
+### Changed
+
+- Split core conversion models, errors, raster embedding, vectorization, and
+  batch processing into focused modules while keeping the public API stable.
+
 ## 1.5.0 - 2026-08-12
 
 ### Added

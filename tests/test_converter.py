@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
-import svgconverter.converter as converter_module
+import svgconverter.vectorize as vectorize_module
 from svgconverter import (
+    BatchResult,
     ConversionError,
     ConversionProgress,
     EmbedOptions,
@@ -24,6 +25,10 @@ from svgconverter import (
     convert_file_with_metrics,
     convert_paths,
 )
+from svgconverter.errors import ConversionError as ErrorConversionError
+from svgconverter.errors import SVGConverterError as ErrorBase
+from svgconverter.models import BatchResult as ModelBatchResult
+from svgconverter.models import EmbedOptions as ModelEmbedOptions
 
 
 def create_image(
@@ -36,6 +41,13 @@ def create_image(
     image = Image.new("RGB", size, color=(25, 50, 75))
     image.save(path, format=image_format, **save_kwargs)
     return path
+
+
+def test_public_models_and_errors_remain_reexported() -> None:
+    assert BatchResult is ModelBatchResult
+    assert EmbedOptions is ModelEmbedOptions
+    assert ConversionError is ErrorConversionError
+    assert issubclass(ConversionError, ErrorBase)
 
 
 def embedded_raster_bytes(output_path: Path) -> bytes:
@@ -512,7 +524,7 @@ def test_vectorize_mode_explains_missing_optional_dependency(
         raise ModuleNotFoundError("No module named 'vtracer'")
 
     monkeypatch.setattr(
-        converter_module.importlib, "import_module", raise_missing_module
+        vectorize_module.importlib, "import_module", raise_missing_module
     )
 
     with pytest.raises(
