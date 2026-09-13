@@ -7,6 +7,20 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.7.0 - 2026-09-13
+
+### Added
+
+- SonarQube Cloud analysis with imported pytest coverage and pull request
+  Quality Gate reporting.
+- Maintainer documentation for SonarQube Cloud setup, baseline review, and
+  rollout.
+
+### Changed
+
+- Split GitHub Actions into focused quality, build, SonarQube, and release
+  workflows.
+
 ## 1.6.0 - 2026-09-13
 
 ### Added
