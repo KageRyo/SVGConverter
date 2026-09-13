@@ -17,6 +17,8 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 - Split core conversion models, errors, raster embedding, vectorization, and
   batch processing into focused modules while keeping the public API stable.
+- Stage embed and vectorize outputs before atomically replacing the destination,
+  preserving existing SVGs when a conversion fails.
 
 ## 1.5.0 - 2026-08-12
 

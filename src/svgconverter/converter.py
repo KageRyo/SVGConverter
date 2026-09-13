@@ -7,6 +7,8 @@ separate optional mode.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 
@@ -84,6 +86,62 @@ def _validate_embed_options(
         raise ValueError("embed_options can only be used with mode='embed'.")
 
 
+def _temporary_output_path(destination: Path) -> Path:
+    """Create a closed temporary output file beside the final destination."""
+
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.stem}-",
+        suffix=".svg.tmp",
+        dir=destination.parent,
+    )
+    try:
+        os.close(file_descriptor)
+    except OSError:
+        try:
+            Path(temporary_name).unlink()
+        except OSError:
+            pass
+        raise
+    return Path(temporary_name)
+
+
+def _validate_temporary_output(temporary_path: Path, destination: Path) -> None:
+    """Ensure a staged SVG exists, is non-empty, and can be read."""
+
+    try:
+        if not temporary_path.is_file():
+            raise ConversionError(
+                f"Conversion did not create an SVG for destination {destination}."
+            )
+        if temporary_path.stat().st_size == 0:
+            raise ConversionError(
+                f"Conversion produced an empty SVG for destination {destination}."
+            )
+        with temporary_path.open("rb") as output:
+            if not output.read(1):
+                raise ConversionError(
+                    f"Conversion produced an unreadable SVG for destination "
+                    f"{destination}."
+                )
+    except OSError as error:
+        raise ConversionError(
+            f"Cannot validate SVG output for destination {destination}: {error}"
+        ) from error
+
+
+def _cleanup_temporary_output(temporary_path: Path | None) -> None:
+    """Remove a staged output without hiding the original conversion error."""
+
+    if temporary_path is None:
+        return
+    try:
+        temporary_path.unlink()
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+
 def convert_file_with_metrics(
     input_path: str | Path,
     output_path: str | Path | None = None,
@@ -120,15 +178,28 @@ def convert_file_with_metrics(
     if destination.exists() and destination.is_dir():
         raise InputPathError(f"Output path is a directory: {destination}")
 
+    temporary_output: Path | None = None
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)
+        staged_output = _temporary_output_path(destination)
+        temporary_output = staged_output
         if mode == "embed":
-            embedded_raster_bytes = embed_image(source, destination, embed_options)
+            embedded_raster_bytes = embed_image(source, staged_output, embed_options)
         else:
             vectorize_image(
-                source, destination, vectorize_options or VectorizeOptions()
+                source, staged_output, vectorize_options or VectorizeOptions()
             )
             embedded_raster_bytes = None
+        _validate_temporary_output(staged_output, destination)
+        if destination.exists() and not overwrite:
+            raise OutputExistsError(
+                f"Output appeared during conversion: {destination}. "
+                "Pass overwrite=True to replace it."
+            )
+        if destination.exists() and destination.is_dir():
+            raise InputPathError(f"Output path is a directory: {destination}")
+        os.replace(staged_output, destination)
+        temporary_output = None
         return ConversionMetrics(
             input_path=source,
             output_path=destination,
@@ -136,8 +207,16 @@ def convert_file_with_metrics(
             svg_bytes=destination.stat().st_size,
             embedded_raster_bytes=embedded_raster_bytes,
         )
+    except ConversionError as error:
+        raise ConversionError(
+            f"Conversion failed for {source} -> {destination}: {error}"
+        ) from error
     except OSError as error:
-        raise ConversionError(f"Cannot write SVG {destination}: {error}") from error
+        raise ConversionError(
+            f"Cannot write SVG {destination} for input {source}: {error}"
+        ) from error
+    finally:
+        _cleanup_temporary_output(temporary_output)
 
 
 def convert_file(
