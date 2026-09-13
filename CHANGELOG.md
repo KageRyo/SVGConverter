@@ -7,6 +7,11 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+### Added
+
+- GUI controls for embed/vectorize modes, output directories, overwrite and
+  recursive conversion, plus embed optimization and common vectorize options.
+
 ## 1.5.0 - 2026-08-12
 
 ### Added
