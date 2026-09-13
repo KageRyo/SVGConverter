@@ -1,8 +1,10 @@
 # SonarQube Cloud
 
 SVGConverter uses CI-based SonarQube Cloud analysis in addition to Ruff,
-Pyright, pytest, and pytest-cov. The scanner reads the Cobertura report created
-by the test workflow; it does not generate coverage itself.
+Pyright, pytest, and pytest-cov. The repository keeps quality checks, build
+checks, SonarQube analysis, and release work in separate workflows. The Sonar
+workflow generates its own Cobertura report; it does not depend on an artifact
+from another workflow.
 
 ## One-time repository setup
 
@@ -23,18 +25,21 @@ keeps the initial rollout safe while the external project and token are being
 configured. A missing token after enabling the variables is a configuration
 error and should be fixed before merging.
 
-## CI behavior
+## Workflow behavior
 
-- The Python matrix continues to run Ruff, pytest, coverage, and Pyright for
-  Python 3.10 through 3.14.
-- The Python 3.13 job also installs the optional VTracer dependency and uploads
-  the canonical `coverage.xml` artifact.
-- One SonarQube Cloud job downloads that artifact and runs
+- `ci.yml` runs Ruff, pytest, coverage, and Pyright for Python 3.10 through
+  3.14. The Python 3.13 job installs the optional VTracer dependency so the
+  complete test suite remains covered.
+- `build.yml` validates package distributions, the Windows standalone
+  executable, and the vectorize integration path.
+- `sonarqube.yml` uses Python 3.13, installs the development and vectorize
+  extras, generates `coverage.xml`, and runs
   `SonarSource/sonarqube-scan-action@v7` with a full Git checkout.
-- The Sonar job runs on `main` pushes, manual workflow dispatches, and pull
-  requests from branches in this repository. Fork pull requests keep the
-  normal CI checks but skip Sonar so a repository secret is never exposed to
+- The Sonar workflow runs on `main` pushes, manual Sonar workflow dispatches,
+  and pull requests from branches in this repository. Fork pull requests keep
+  the normal checks but skip Sonar so a repository secret is never exposed to
   untrusted code.
+- `release.yml` remains separate and is triggered only by version tags.
 
 The scanner configuration lives in [`sonar-project.properties`](../sonar-project.properties).
 The GUI remains part of Sonar source analysis, but is excluded from the
@@ -43,8 +48,8 @@ coverage percentage because its event loop is an interactive boundary.
 ## Baseline rollout
 
 1. Run the first scan on `main` and confirm that `coverage.xml` appears in the
-   SonarQube Cloud project. Use the CI workflow's manual dispatch when the
-   external variables and token are added after the initial rollout.
+   SonarQube Cloud project. Use the SonarQube Cloud workflow's manual dispatch
+   when rerunning only the analysis is useful.
 2. Review reliability, security, maintainability, duplication, and coverage
    findings. Apply only justified source, test, or generated-artifact
    exclusions.
