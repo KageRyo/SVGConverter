@@ -7,6 +7,8 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.6.0 - 2026-09-13
+
 ### Added
 
 - GUI controls for embed/vectorize modes, output directories, overwrite and
