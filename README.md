@@ -10,6 +10,37 @@
 SVGConverter converts PNG, JPEG, WebP, BMP, and TIFF images to SVG through a
 small Python API, command-line interface, and desktop GUI.
 
+## At a glance
+
+| Interface | Best for | Highlights |
+| --- | --- | --- |
+| Python API | Application integration and automation | Single files, mixed batches, metrics, progress, and cancellation |
+| CLI | Scripts and repeatable workflows | Files, directories, recursion, output directories, and optimization |
+| Desktop GUI | Interactive conversion | Both modes, conversion options, progress, and cancellation |
+
+## Choose a conversion mode
+
+```text
+Raster image
+    │
+    ├── embed ─────> SVG <image> (pixels preserved by default)
+    └── vectorize -> SVG <path>  (optional VTracer backend)
+```
+
+| Goal | Recommended mode | What to expect |
+| --- | --- | --- |
+| Preserve pixels, especially for photographs | `embed` | A self-contained SVG with an embedded raster; the default keeps the original raster bytes, while Base64 adds some overhead |
+| Create editable paths from logos, icons, or line art | `vectorize` | VTracer-generated SVG paths; the result depends on tracing options and input complexity |
+| Need both faithful and path-based output | Run both modes | They produce different representations; `embed` is not a substitute for vectorization |
+
+### Representative inputs
+
+| Input | `embed` | `vectorize` | Suggested choice |
+| --- | --- | --- | --- |
+| Photograph | Faithful pixels; size follows the source raster plus SVG/Base64 overhead | May become larger and stylized | `embed` |
+| Logo or icon | Faithful raster appearance | Often a good path candidate; size depends on tracing settings | `vectorize` when editable paths are needed |
+| High-contrast line art | Exact raster appearance | Usually a good path candidate | Choose based on fidelity versus editability |
+
 ## Conversion modes
 
 - **`embed`** (default) places the original raster bytes in an SVG `<image>`
