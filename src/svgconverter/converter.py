@@ -276,7 +276,7 @@ class SVGConverter:
         _validate_embed_options(mode, embed_options)
         self.overwrite = overwrite
         self.recursive = recursive
-        self.mode = mode
+        self.mode: ConversionMode = mode
         self.vectorize_options = vectorize_options
         self.embed_options = embed_options
 
