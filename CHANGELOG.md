@@ -12,6 +12,8 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 - GUI controls for embed/vectorize modes, output directories, overwrite and
   recursive conversion, plus embed optimization and common vectorize options.
 - CI coverage reporting with an 85% minimum and Pyright static type checking.
+- README workflow overview and mode-selection examples for faster project
+  evaluation.
 
 ### Changed
 
