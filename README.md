@@ -1,5 +1,10 @@
 # SVGConverter
 
+[![CI](https://github.com/KageRyo/SVGConverter/actions/workflows/ci.yml/badge.svg)](https://github.com/KageRyo/SVGConverter/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/svgconverter.svg)](https://pypi.org/project/svgconverter/)
+[![Python](https://img.shields.io/pypi/pyversions/svgconverter.svg)](https://pypi.org/project/svgconverter/)
+[![License](https://img.shields.io/github/license/KageRyo/SVGConverter.svg)](LICENSE)
+
 [正體中文](README_TW.md)
 
 SVGConverter converts PNG, JPEG, WebP, BMP, and TIFF images to SVG through a
