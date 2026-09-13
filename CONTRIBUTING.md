@@ -21,10 +21,15 @@ Run the checks used by CI before opening a pull request:
 ```bash
 ruff format --check .
 ruff check .
-pytest
+pytest --cov=svgconverter --cov-report=term-missing
+pyright src/
 python -m build
 python -m twine check dist/*
 ```
+
+Coverage has an 85% minimum configured in `pyproject.toml`. The GUI event
+loop is excluded from the package coverage total because it is an interactive
+boundary; focused GUI tests still run as part of the test suite.
 
 ## Scope and changes
 
