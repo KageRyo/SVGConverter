@@ -31,9 +31,10 @@ error and should be fixed before merging.
   the canonical `coverage.xml` artifact.
 - One SonarQube Cloud job downloads that artifact and runs
   `SonarSource/sonarqube-scan-action@v7` with a full Git checkout.
-- The Sonar job runs on `main` pushes and pull requests from branches in this
-  repository. Fork pull requests keep the normal CI checks but skip Sonar so a
-  repository secret is never exposed to untrusted code.
+- The Sonar job runs on `main` pushes, manual workflow dispatches, and pull
+  requests from branches in this repository. Fork pull requests keep the
+  normal CI checks but skip Sonar so a repository secret is never exposed to
+  untrusted code.
 
 The scanner configuration lives in [`sonar-project.properties`](../sonar-project.properties).
 The GUI remains part of Sonar source analysis, but is excluded from the
@@ -42,7 +43,8 @@ coverage percentage because its event loop is an interactive boundary.
 ## Baseline rollout
 
 1. Run the first scan on `main` and confirm that `coverage.xml` appears in the
-   SonarQube Cloud project.
+   SonarQube Cloud project. Use the CI workflow's manual dispatch when the
+   external variables and token are added after the initial rollout.
 2. Review reliability, security, maintainability, duplication, and coverage
    findings. Apply only justified source, test, or generated-artifact
    exclusions.
