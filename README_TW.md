@@ -1,6 +1,8 @@
 # SVGConverter
 
 [![CI](https://github.com/KageRyo/SVGConverter/actions/workflows/ci.yml/badge.svg)](https://github.com/KageRyo/SVGConverter/actions/workflows/ci.yml)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=KageRyo_SVGConverter&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=KageRyo_SVGConverter)
+[![Coverage](https://sonarcloud.io/api/project_badges/measure?project=KageRyo_SVGConverter&metric=coverage)](https://sonarcloud.io/component_measures?id=KageRyo_SVGConverter&metric=coverage)
 [![PyPI](https://img.shields.io/pypi/v/svgconverter.svg)](https://pypi.org/project/svgconverter/)
 [![Python](https://img.shields.io/pypi/pyversions/svgconverter.svg)](https://pypi.org/project/svgconverter/)
 [![License](https://img.shields.io/github/license/KageRyo/SVGConverter.svg)](LICENSE)
