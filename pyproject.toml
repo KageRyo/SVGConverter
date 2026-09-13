@@ -68,6 +68,7 @@ addopts = "-ra"
 branch = true
 source = ["svgconverter"]
 omit = ["*/svgconverter/gui.py"]
+relative_files = true
 
 [tool.coverage.report]
 fail_under = 85

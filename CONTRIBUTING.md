@@ -31,6 +31,10 @@ Coverage has an 85% minimum configured in `pyproject.toml`. The GUI event
 loop is excluded from the package coverage total because it is an interactive
 boundary; focused GUI tests still run as part of the test suite.
 
+The [SonarQube Cloud setup and rollout guide](docs/sonarqube.md) documents the
+maintainer-only variables, token, baseline review, and pull request check
+configuration used by CI.
+
 ## Scope and changes
 
 SVGConverter has two distinct conversion modes. `embed` stores a supported
