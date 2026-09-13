@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+import svgconverter.converter as converter_module
 import svgconverter.vectorize as vectorize_module
 from svgconverter import (
     BatchResult,
@@ -225,6 +226,82 @@ def test_existing_output_requires_overwrite(tmp_path: Path) -> None:
 
     convert_file(source, destination, overwrite=True)
     assert "data:image/png;base64," in destination.read_text(encoding="utf-8")
+
+
+def test_failed_embed_does_not_leave_partial_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "result.svg"
+
+    def fail_after_partial_write(
+        _source: Path, temporary_path: Path, _options: EmbedOptions | None
+    ) -> int:
+        temporary_path.write_text("partial", encoding="utf-8")
+        raise ConversionError("embed backend failed")
+
+    monkeypatch.setattr(converter_module, "embed_image", fail_after_partial_write)
+
+    with pytest.raises(ConversionError) as error_info:
+        convert_file(source, destination)
+
+    assert str(source) in str(error_info.value)
+    assert str(destination) in str(error_info.value)
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".result-*.svg.tmp"))
+
+
+def test_failed_vectorize_preserves_existing_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "result.svg"
+    destination.write_text("original", encoding="utf-8")
+
+    def fail_after_partial_write(
+        _source: Path, temporary_path: Path, _options: VectorizeOptions
+    ) -> None:
+        temporary_path.write_text("partial", encoding="utf-8")
+        raise ConversionError("vectorize backend failed")
+
+    monkeypatch.setattr(converter_module, "vectorize_image", fail_after_partial_write)
+
+    with pytest.raises(ConversionError) as error_info:
+        convert_file(source, destination, mode="vectorize", overwrite=True)
+
+    assert str(source) in str(error_info.value)
+    assert str(destination) in str(error_info.value)
+    assert destination.read_text(encoding="utf-8") == "original"
+    assert not list(tmp_path.glob(".result-*.svg.tmp"))
+
+
+def test_successful_conversion_replaces_destination_after_staging(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "result.svg"
+    destination.write_text("original", encoding="utf-8")
+    replace_calls: list[tuple[Path, Path]] = []
+    real_replace = converter_module.os.replace
+
+    def observe_replace(source_path: Path, destination_path: Path) -> None:
+        staged_document = source_path.read_text(encoding="utf-8")
+        assert staged_document
+        assert destination_path.read_text(encoding="utf-8") == "original"
+        replace_calls.append((source_path, destination_path))
+        real_replace(source_path, destination_path)
+
+    monkeypatch.setattr(converter_module.os, "replace", observe_replace)
+
+    output = convert_file(source, destination, overwrite=True)
+
+    assert output == destination
+    assert len(replace_calls) == 1
+    assert replace_calls[0][1] == destination
+    assert replace_calls[0][0].name.startswith(".result-")
+    assert replace_calls[0][0].name.endswith(".svg.tmp")
+    assert "data:image/png;base64," in destination.read_text(encoding="utf-8")
+    assert not list(tmp_path.glob(".result-*.svg.tmp"))
 
 
 def test_invalid_inputs_raise_useful_errors(tmp_path: Path) -> None:
