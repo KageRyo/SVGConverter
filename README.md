@@ -153,8 +153,18 @@ The legacy development command `python main.py` starts the same GUI. Select one
 or more files, or a folder, to convert with visible non-blocking progress and a
 converted/skipped/failed summary. You can cancel between files; any per-file
 errors are shown after the batch without closing the application. The GUI offers
-Traditional Chinese, English, and Japanese and uses embed mode; vectorize mode
-is available through the Python API and CLI.
+Traditional Chinese, English, and Japanese, plus the following conversion
+settings:
+
+- Select `embed` or `vectorize` mode.
+- Choose an output directory, overwrite existing SVG files, and optionally
+  include nested folders.
+- Configure embed resizing, JPEG quality, PNG compression, and PNG optimization.
+- Configure common vectorize options such as color mode, hierarchy, curve mode,
+  speckle filtering, color precision, layer difference, and path precision.
+
+Vectorize mode requires the optional `vectorize` extra, just like the CLI and
+Python API.
 
 For a supported release, Windows users can download the standalone
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset from the GitHub Release page; it
