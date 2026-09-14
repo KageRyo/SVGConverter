@@ -43,6 +43,7 @@ from .models import (
     VectorizeHierarchy,
     VectorizeOptions,
 )
+from .paths import ensure_within_root, resolve_allowed_root
 from .vectorize import vectorize_image
 
 __all__ = [
@@ -150,6 +151,7 @@ def convert_file_with_metrics(
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
     embed_options: EmbedOptions | None = None,
+    allowed_root: str | Path | None = None,
 ) -> ConversionMetrics:
     """Convert one image and return the result path plus byte-size metrics.
 
@@ -161,14 +163,21 @@ def convert_file_with_metrics(
     element unless enabled ``embed_options`` request preprocessing. ``mode="vectorize"``
     traces the image into vector paths and requires the ``vectorize`` optional
     dependency.
+
+    When ``allowed_root`` is provided, resolved input and output paths must stay
+    inside that directory; this is useful when paths come from an untrusted
+    integration. The default ``None`` preserves the local CLI/library behavior.
     """
 
     _validate_mode(mode)
     _validate_embed_options(mode, embed_options)
-    source = Path(input_path)
+    path_root = resolve_allowed_root(allowed_root)
+    source = ensure_within_root(input_path, path_root, label="Input path")
     validate_input(source)
     destination = (
-        Path(output_path) if output_path is not None else source.with_suffix(".svg")
+        ensure_within_root(output_path, path_root, label="Output path")
+        if output_path is not None
+        else source.with_suffix(".svg")
     )
 
     if destination.exists() and not overwrite:
@@ -227,6 +236,7 @@ def convert_file(
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
     embed_options: EmbedOptions | None = None,
+    allowed_root: str | Path | None = None,
 ) -> Path:
     """Convert one supported raster image and return its output SVG path.
 
@@ -241,6 +251,7 @@ def convert_file(
         mode=mode,
         vectorize_options=vectorize_options,
         embed_options=embed_options,
+        allowed_root=allowed_root,
     ).output_path
 
 
@@ -253,6 +264,7 @@ def convert_directory(
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
     embed_options: EmbedOptions | None = None,
+    allowed_root: str | Path | None = None,
     progress_callback: ProgressCallback | None = None,
     should_cancel: CancelCallback | None = None,
 ) -> BatchResult:
@@ -264,18 +276,24 @@ def convert_directory(
     source directory structure. Existing SVGs are skipped unless
     ``overwrite=True`` is supplied. ``progress_callback`` is called after each
     processed input, while ``should_cancel`` can stop before the next input.
+
+    Pass ``allowed_root`` to keep resolved input and output paths inside a
+    trusted directory when the directory path comes from an untrusted source.
     """
 
     _validate_mode(mode)
     _validate_embed_options(mode, embed_options)
-    source_directory = Path(directory)
+    path_root = resolve_allowed_root(allowed_root)
+    source_directory = ensure_within_root(directory, path_root, label="Input directory")
     if not source_directory.exists():
         raise InputPathError(f"Input directory does not exist: {source_directory}")
     if not source_directory.is_dir():
         raise InputPathError(f"Input path is not a directory: {source_directory}")
 
     destination_directory = (
-        Path(output_dir) if output_dir is not None else source_directory
+        ensure_within_root(output_dir, path_root, label="Output directory")
+        if output_dir is not None
+        else source_directory
     )
     validate_output_directory(destination_directory)
     return convert_candidates(
@@ -287,6 +305,7 @@ def convert_directory(
         mode=mode,
         vectorize_options=vectorize_options,
         embed_options=embed_options,
+        allowed_root=path_root,
         progress_callback=progress_callback,
         should_cancel=should_cancel,
     )
@@ -301,6 +320,7 @@ def convert_paths(
     mode: ConversionMode = "embed",
     vectorize_options: VectorizeOptions | None = None,
     embed_options: EmbedOptions | None = None,
+    allowed_root: str | Path | None = None,
     progress_callback: ProgressCallback | None = None,
     should_cancel: CancelCallback | None = None,
 ) -> BatchResult:
@@ -316,6 +336,9 @@ def convert_paths(
     Explicit file inputs with unsupported extensions are reported as failures;
     unsupported files discovered inside directories are ignored.
 
+    Pass ``allowed_root`` to confine every resolved input and output path to a
+    trusted directory when batch paths come from an untrusted integration.
+
     ``progress_callback`` is called after each processed input. Return ``True``
     from ``should_cancel`` to finish the current item and stop before the next;
     the returned result then has ``cancelled=True``.
@@ -324,7 +347,10 @@ def convert_paths(
     _validate_mode(mode)
     _validate_embed_options(mode, embed_options)
     candidates, initial_failures = path_candidates(
-        input_paths, output_dir, recursive=recursive
+        input_paths,
+        output_dir,
+        recursive=recursive,
+        allowed_root=allowed_root,
     )
     return convert_candidates(
         candidates,
@@ -333,6 +359,7 @@ def convert_paths(
         mode=mode,
         vectorize_options=vectorize_options,
         embed_options=embed_options,
+        allowed_root=allowed_root,
         progress_callback=progress_callback,
         should_cancel=should_cancel,
         initial_failures=initial_failures,
@@ -340,7 +367,11 @@ def convert_paths(
 
 
 class SVGConverter:
-    """Configurable facade for repeated embedding or vectorization operations."""
+    """Configurable facade for repeated conversion operations.
+
+    ``allowed_root`` optionally confines resolved input and output paths to a
+    trusted directory for integrations that accept untrusted path values.
+    """
 
     def __init__(
         self,
@@ -350,6 +381,7 @@ class SVGConverter:
         mode: ConversionMode = "embed",
         vectorize_options: VectorizeOptions | None = None,
         embed_options: EmbedOptions | None = None,
+        allowed_root: str | Path | None = None,
     ) -> None:
         _validate_mode(mode)
         _validate_embed_options(mode, embed_options)
@@ -358,6 +390,7 @@ class SVGConverter:
         self.mode: ConversionMode = mode
         self.vectorize_options = vectorize_options
         self.embed_options = embed_options
+        self.allowed_root: Path | None = resolve_allowed_root(allowed_root)
 
     def convert_file(
         self, input_path: str | Path, output_path: str | Path | None = None
@@ -371,6 +404,7 @@ class SVGConverter:
             mode=self.mode,
             vectorize_options=self.vectorize_options,
             embed_options=self.embed_options,
+            allowed_root=self.allowed_root,
         )
 
     def convert_directory(
@@ -392,6 +426,7 @@ class SVGConverter:
             mode=self.mode,
             vectorize_options=self.vectorize_options,
             embed_options=self.embed_options,
+            allowed_root=self.allowed_root,
             progress_callback=progress_callback,
             should_cancel=should_cancel,
         )
@@ -415,6 +450,7 @@ class SVGConverter:
             mode=self.mode,
             vectorize_options=self.vectorize_options,
             embed_options=self.embed_options,
+            allowed_root=self.allowed_root,
             progress_callback=progress_callback,
             should_cancel=should_cancel,
         )

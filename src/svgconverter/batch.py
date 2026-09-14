@@ -23,6 +23,7 @@ from .models import (
     ProgressCallback,
     VectorizeOptions,
 )
+from .paths import ensure_within_root, resolve_allowed_root
 
 Candidate = tuple[Path, Path]
 FileConverter = Callable[..., ConversionMetrics]
@@ -64,19 +65,57 @@ def directory_candidates(
     ]
 
 
+def _directory_output(
+    source: Path,
+    destination_directory: Path | None,
+    *,
+    prefix_directories: bool,
+) -> Path:
+    if destination_directory is None:
+        return source
+    if prefix_directories:
+        return destination_directory / source.name
+    return destination_directory
+
+
+def _file_candidate(source: Path, destination_directory: Path | None) -> Candidate:
+    destination = (
+        source.with_suffix(".svg")
+        if destination_directory is None
+        else destination_directory / source.with_suffix(".svg").name
+    )
+    return source, destination
+
+
+def _missing_file_failure(source: Path) -> ConversionFailure:
+    return ConversionFailure(
+        input_path=source,
+        error=InputPathError(f"Input file does not exist: {source}"),
+    )
+
+
 def path_candidates(
     input_paths: Iterable[str | Path],
     output_dir: str | Path | None,
     *,
     recursive: bool,
+    allowed_root: str | Path | None = None,
 ) -> tuple[list[Candidate], list[ConversionFailure]]:
     """Plan file and directory inputs while preserving missing-file failures."""
 
-    source_paths = tuple(Path(input_path) for input_path in input_paths)
+    path_root = resolve_allowed_root(allowed_root)
+    source_paths = tuple(
+        ensure_within_root(input_path, path_root, label="Input path")
+        for input_path in input_paths
+    )
     if not source_paths:
         raise InputPathError("At least one input file or directory is required.")
 
-    destination_directory = Path(output_dir) if output_dir is not None else None
+    destination_directory = (
+        ensure_within_root(output_dir, path_root, label="Output directory")
+        if output_dir is not None
+        else None
+    )
     if destination_directory is not None:
         validate_output_directory(destination_directory)
 
@@ -86,32 +125,142 @@ def path_candidates(
     initial_failures: list[ConversionFailure] = []
     for source in source_paths:
         if source.is_dir():
-            directory_output = (
-                source if destination_directory is None else destination_directory
+            directory_output = _directory_output(
+                source,
+                destination_directory,
+                prefix_directories=prefix_directories,
             )
-            if destination_directory is not None and prefix_directories:
-                directory_output = destination_directory / source.name
             candidates.extend(
                 directory_candidates(source, directory_output, recursive=recursive)
             )
             continue
 
-        destination = (
-            source.with_suffix(".svg")
-            if destination_directory is None
-            else destination_directory / source.with_suffix(".svg").name
-        )
+        candidate = _file_candidate(source, destination_directory)
         if not source.exists():
-            initial_failures.append(
-                ConversionFailure(
-                    input_path=source,
-                    error=InputPathError(f"Input file does not exist: {source}"),
-                )
-            )
+            initial_failures.append(_missing_file_failure(source))
             continue
-        candidates.append((source, destination))
+        candidates.append(candidate)
 
     return candidates, initial_failures
+
+
+def _unique_candidates(candidates: Iterable[Candidate]) -> list[Candidate]:
+    unique_candidates: list[Candidate] = []
+    seen_candidates: set[Candidate] = set()
+    for candidate in candidates:
+        if candidate in seen_candidates:
+            continue
+        unique_candidates.append(candidate)
+        seen_candidates.add(candidate)
+    return unique_candidates
+
+
+def _colliding_destinations(
+    candidates: Iterable[Candidate],
+) -> tuple[dict[Path, list[Path]], set[Path]]:
+    sources_by_destination: dict[Path, list[Path]] = {}
+    for source, destination in candidates:
+        sources_by_destination.setdefault(destination, []).append(source)
+    colliding_destinations = {
+        destination
+        for destination, sources in sources_by_destination.items()
+        if len(sources) > 1
+    }
+    return sources_by_destination, colliding_destinations
+
+
+def _collision_failure(
+    source: Path,
+    destination: Path,
+    sources_by_destination: dict[Path, list[Path]],
+) -> ConversionFailure:
+    colliding_sources = ", ".join(
+        str(candidate) for candidate in sources_by_destination[destination]
+    )
+    return ConversionFailure(
+        input_path=source,
+        error=OutputCollisionError(
+            "Batch inputs would create the same output "
+            f"{destination}: {colliding_sources}"
+        ),
+    )
+
+
+def _process_candidate(
+    source: Path,
+    destination: Path,
+    *,
+    colliding_destinations: set[Path],
+    sources_by_destination: dict[Path, list[Path]],
+    convert_file: FileConverter,
+    overwrite: bool,
+    mode: ConversionMode,
+    vectorize_options: VectorizeOptions | None,
+    embed_options: EmbedOptions | None,
+    allowed_root: str | Path | None,
+) -> tuple[ConversionMetrics | None, ConversionSkip | None, ConversionFailure | None]:
+    if destination in colliding_destinations:
+        return (
+            None,
+            None,
+            _collision_failure(source, destination, sources_by_destination),
+        )
+    if destination.exists() and destination.is_dir():
+        return (
+            None,
+            None,
+            ConversionFailure(
+                input_path=source,
+                error=InputPathError(f"Output path is a directory: {destination}"),
+            ),
+        )
+    if destination.exists() and not overwrite:
+        return (
+            None,
+            ConversionSkip(
+                input_path=source,
+                output_path=destination,
+                reason="output already exists",
+            ),
+            None,
+        )
+    try:
+        metric = convert_file(
+            source,
+            destination,
+            overwrite=overwrite,
+            mode=mode,
+            vectorize_options=vectorize_options,
+            embed_options=embed_options,
+            allowed_root=allowed_root,
+        )
+    except SVGConverterError as error:
+        return None, None, ConversionFailure(input_path=source, error=error)
+    return metric, None, None
+
+
+def _report_progress(
+    progress_callback: ProgressCallback | None,
+    *,
+    source: Path,
+    completed: int,
+    total: int,
+    converted: list[Path],
+    skipped: list[ConversionSkip],
+    failed: list[ConversionFailure],
+) -> None:
+    if progress_callback is None:
+        return
+    progress_callback(
+        ConversionProgress(
+            input_path=source,
+            completed=completed,
+            total=total,
+            converted=len(converted),
+            skipped=len(skipped),
+            failed=len(failed),
+        )
+    )
 
 
 def convert_candidates(
@@ -122,27 +271,17 @@ def convert_candidates(
     mode: ConversionMode,
     vectorize_options: VectorizeOptions | None,
     embed_options: EmbedOptions | None,
+    allowed_root: str | Path | None = None,
     progress_callback: ProgressCallback | None = None,
     should_cancel: CancelCallback | None = None,
     initial_failures: Iterable[ConversionFailure] = (),
 ) -> BatchResult:
     """Convert planned source/output pairs with predictable batch semantics."""
 
-    unique_candidates: list[Candidate] = []
-    seen_candidates: set[Candidate] = set()
-    for candidate in candidates:
-        if candidate not in seen_candidates:
-            unique_candidates.append(candidate)
-            seen_candidates.add(candidate)
-
-    sources_by_destination: dict[Path, list[Path]] = {}
-    for source, destination in unique_candidates:
-        sources_by_destination.setdefault(destination, []).append(source)
-    colliding_destinations = {
-        destination
-        for destination, sources in sources_by_destination.items()
-        if len(sources) > 1
-    }
+    unique_candidates = _unique_candidates(candidates)
+    sources_by_destination, colliding_destinations = _colliding_destinations(
+        unique_candidates
+    )
 
     converted: list[Path] = []
     skipped: list[ConversionSkip] = []
@@ -154,61 +293,36 @@ def convert_candidates(
         if should_cancel is not None and should_cancel():
             cancelled = True
             break
-        if destination in colliding_destinations:
-            colliding_sources = ", ".join(
-                str(candidate) for candidate in sources_by_destination[destination]
-            )
-            failed.append(
-                ConversionFailure(
-                    input_path=source,
-                    error=OutputCollisionError(
-                        "Batch inputs would create the same output "
-                        f"{destination}: {colliding_sources}"
-                    ),
-                )
-            )
-        elif destination.exists() and destination.is_dir():
-            failed.append(
-                ConversionFailure(
-                    input_path=source,
-                    error=InputPathError(f"Output path is a directory: {destination}"),
-                )
-            )
-        elif destination.exists() and not overwrite:
-            skipped.append(
-                ConversionSkip(
-                    input_path=source,
-                    output_path=destination,
-                    reason="output already exists",
-                )
-            )
-        else:
-            try:
-                metric = convert_file(
-                    source,
-                    destination,
-                    overwrite=overwrite,
-                    mode=mode,
-                    vectorize_options=vectorize_options,
-                    embed_options=embed_options,
-                )
-                converted.append(metric.output_path)
-                metrics.append(metric)
-            except SVGConverterError as error:
-                failed.append(ConversionFailure(input_path=source, error=error))
+        metric, skip, failure = _process_candidate(
+            source,
+            destination,
+            colliding_destinations=colliding_destinations,
+            sources_by_destination=sources_by_destination,
+            convert_file=convert_file,
+            overwrite=overwrite,
+            mode=mode,
+            vectorize_options=vectorize_options,
+            embed_options=embed_options,
+            allowed_root=allowed_root,
+        )
+        if metric is not None:
+            converted.append(metric.output_path)
+            metrics.append(metric)
+        if skip is not None:
+            skipped.append(skip)
+        if failure is not None:
+            failed.append(failure)
 
         completed += 1
-        if progress_callback is not None:
-            progress_callback(
-                ConversionProgress(
-                    input_path=source,
-                    completed=completed,
-                    total=len(unique_candidates),
-                    converted=len(converted),
-                    skipped=len(skipped),
-                    failed=len(failed),
-                )
-            )
+        _report_progress(
+            progress_callback,
+            source=source,
+            completed=completed,
+            total=len(unique_candidates),
+            converted=converted,
+            skipped=skipped,
+            failed=failed,
+        )
 
     return BatchResult(
         converted=tuple(converted),
