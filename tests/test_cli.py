@@ -28,6 +28,20 @@ def test_cli_converts_single_file_to_explicit_output(
     assert "Converted:" in capsys.readouterr().out
 
 
+def test_cli_allowed_root_rejects_input_outside_boundary(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    allowed_root = tmp_path / "workspace"
+    allowed_root.mkdir()
+    source = create_image(tmp_path / "outside.png", "PNG")
+
+    with pytest.raises(SystemExit) as exit_status:
+        main([str(source), "--allowed-root", str(allowed_root)])
+
+    assert exit_status.value.code == 1
+    assert "within allowed root" in capsys.readouterr().err
+
+
 def test_cli_applies_embed_optimization_and_prints_size_metrics(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

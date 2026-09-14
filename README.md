@@ -111,6 +111,12 @@ Supported inputs are PNG, JPG, JPEG, WebP, BMP, TIF, and TIFF (including
 upper-case extensions). Run `svgconverter --help` for all options. Vectorize
 mode requires the optional `vectorize` extra.
 
+When a wrapper passes paths from an untrusted user or agent, add
+`--allowed-root ./workspace` to restrict resolved input and output paths to that
+directory. Existing symlinks that resolve outside the boundary are rejected.
+Without this option, the local CLI keeps its normal ability to access
+user-selected filesystem locations.
+
 ### Embed optimization
 
 Embed mode preserves the source raster bytes by default. Opt in to resizing or
@@ -142,6 +148,7 @@ from svgconverter import (
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
+convert_file("workspace/image.png", allowed_root="workspace")
 
 converter = SVGConverter(overwrite=True)
 result = converter.convert_directory("./images", "./svg-output", recursive=True)
@@ -173,6 +180,12 @@ uses the original raster bytes. `convert_file_with_metrics()` and
 Use `progress_callback` for each processed item; return `True` from
 `should_cancel` to stop cleanly before the next item. The result then has
 `cancelled=True`.
+
+For integrations that accept untrusted path values, pass `allowed_root` to
+`convert_file()`, `convert_file_with_metrics()`, `convert_directory()`,
+`convert_paths()`, or `SVGConverter`. The converter resolves paths and rejects
+inputs, outputs, and symlink escapes outside that directory. The default
+`allowed_root=None` preserves the local library behavior.
 
 ## GUI
 

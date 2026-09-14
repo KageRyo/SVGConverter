@@ -107,6 +107,10 @@ svgconverter image.png photo.jpg --output-dir ./svg-output
 使用 `svgconverter --help` 可查看完整選項。`vectorize` 模式需要安裝選用的
 `vectorize` extra。
 
+如果 wrapper 會把不受信任的使用者或 agent 輸入直接傳成路徑，請加上
+`--allowed-root ./workspace`，將解析後的輸入與輸出限制在該資料夾內；解析後落在邊界外的既有
+symlink 也會被拒絕。不指定時，本機 CLI 仍保留存取使用者選定檔案位置的原有行為。
+
 ### embed 模式最佳化
 
 `embed` 模式預設會保留原始點陣 bytes。只有在可接受品質取捨、希望縮小點陣 payload 時，才選擇
@@ -136,6 +140,7 @@ from svgconverter import (
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
+convert_file("workspace/image.png", allowed_root="workspace")
 
 converter = SVGConverter(overwrite=True)
 result = converter.convert_directory("./images", "./svg-output", recursive=True)
@@ -164,6 +169,10 @@ embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `Bat
 嵌入點陣與 SVG 的 byte 大小。
 可使用 `progress_callback` 取得每個已處理項目；讓 `should_cancel` 回傳 `True`，即可在下一個檔案
 開始前安全停止，結果的 `cancelled` 會是 `True`。
+
+如果整合程式會接受不受信任的路徑值，請對 `convert_file()`、`convert_file_with_metrics()`、
+`convert_directory()`、`convert_paths()` 或 `SVGConverter` 傳入 `allowed_root`。Converter 會先解析路徑，
+拒絕輸入、輸出以及 symlink 跳出該資料夾的情況。預設 `allowed_root=None` 會保留本機 library 的原有行為。
 
 ## GUI
 

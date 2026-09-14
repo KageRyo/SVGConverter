@@ -216,6 +216,65 @@ def test_explicit_output_creates_parent_directories(tmp_path: Path) -> None:
     assert output.is_file()
 
 
+def test_allowed_root_rejects_input_outside_boundary(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "workspace"
+    allowed_root.mkdir()
+    source = create_image(tmp_path / "outside.png", "PNG")
+
+    with pytest.raises(InputPathError, match="within allowed root"):
+        convert_file(source, allowed_root=allowed_root)
+
+
+def test_allowed_root_rejects_output_outside_boundary(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "workspace"
+    allowed_root.mkdir()
+    source = create_image(allowed_root / "sample.png", "PNG")
+    destination = allowed_root / ".." / "outside.svg"
+
+    with pytest.raises(InputPathError, match="within allowed root"):
+        convert_file(source, destination, allowed_root=allowed_root)
+
+    assert not destination.resolve().exists()
+
+
+def test_allowed_root_rejects_symlink_escape(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "workspace"
+    allowed_root.mkdir()
+    outside_source = create_image(tmp_path / "outside.png", "PNG")
+    linked_source = allowed_root / "linked.png"
+    try:
+        linked_source.symlink_to(outside_source)
+    except OSError as error:
+        pytest.skip(f"symlink creation is unavailable: {error}")
+
+    with pytest.raises(InputPathError, match="within allowed root"):
+        convert_file(linked_source, allowed_root=allowed_root)
+
+
+def test_allowed_root_accepts_paths_after_normalizing_inside_traversal(
+    tmp_path: Path,
+) -> None:
+    allowed_root = tmp_path / "workspace"
+    source = create_image(allowed_root / "images" / "sample.png", "PNG")
+    destination = allowed_root / "output" / ".." / "result.svg"
+
+    output = convert_file(source, destination, allowed_root=allowed_root)
+
+    assert output == allowed_root / "result.svg"
+    assert output.is_file()
+
+
+def test_allowed_root_applies_to_batch_conversion(tmp_path: Path) -> None:
+    allowed_root = tmp_path / "workspace"
+    source = create_image(allowed_root / "images" / "sample.png", "PNG")
+    output_directory = allowed_root / "output"
+
+    result = convert_paths([source], output_directory, allowed_root=allowed_root)
+
+    assert result.success_count == 1
+    assert result.converted == (output_directory / "sample.svg",)
+
+
 def test_existing_output_requires_overwrite(tmp_path: Path) -> None:
     source = create_image(tmp_path / "sample.png", "PNG")
     destination = tmp_path / "result.svg"
@@ -583,13 +642,10 @@ def test_embed_options_validate_requested_optimization_values(
 
 def test_embed_options_are_rejected_in_vectorize_mode(tmp_path: Path) -> None:
     source = create_image(tmp_path / "sample.png", "PNG")
+    options = EmbedOptions(max_width=100)
 
     with pytest.raises(ValueError, match="embed_options can only"):
-        convert_file(
-            source,
-            mode="vectorize",
-            embed_options=EmbedOptions(max_width=100),
-        )
+        convert_file(source, mode="vectorize", embed_options=options)
 
 
 def test_vectorize_mode_explains_missing_optional_dependency(

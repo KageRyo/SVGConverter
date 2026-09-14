@@ -56,6 +56,14 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Include supported images in nested directories",
     )
+    parser.add_argument(
+        "--allowed-root",
+        type=Path,
+        help=(
+            "Restrict input and output paths to this directory; use this when "
+            "paths originate from an untrusted caller"
+        ),
+    )
     embed_group = parser.add_argument_group("embed optimization options")
     embed_group.add_argument(
         "--max-width",
@@ -238,6 +246,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 mode=arguments.mode,
                 vectorize_options=vectorize_options,
                 embed_options=embed_options,
+                allowed_root=arguments.allowed_root,
             )
             print(f"Converted: {metric.output_path}")
             _print_conversion_metrics(metric)
@@ -255,6 +264,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 mode=arguments.mode,
                 vectorize_options=vectorize_options,
                 embed_options=embed_options,
+                allowed_root=arguments.allowed_root,
             )
         else:
             result = convert_paths(
@@ -265,6 +275,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 mode=arguments.mode,
                 vectorize_options=vectorize_options,
                 embed_options=embed_options,
+                allowed_root=arguments.allowed_root,
             )
         _print_batch_result(result)
         return 1 if result.failed else 0
