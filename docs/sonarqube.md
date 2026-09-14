@@ -45,6 +45,16 @@ The scanner configuration lives in [`sonar-project.properties`](../sonar-project
 The GUI remains part of Sonar source analysis, but is excluded from the
 coverage percentage because its event loop is an interactive boundary.
 
+The Python `pythonsecurity:S8707` rule is intended to catch path injection in
+agentic workflows. SVGConverter itself is a local CLI/library and does not
+accept HTTP requests or run an agent, so its normal caller-selected paths are
+not treated as a remote attack surface. Integrations that do accept untrusted
+path values should pass `allowed_root` (or the CLI's `--allowed-root`), which
+resolves candidates and rejects input, output, and symlink paths outside the
+configured directory. Review the remaining baseline finding in SonarQube Cloud
+against the actual deployment boundary before changing its disposition; do
+not use a source exclusion to hide a new path flow.
+
 ## Baseline rollout
 
 1. Run the first scan on `main` and confirm that `coverage.xml` appears in the
