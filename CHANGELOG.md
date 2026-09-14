@@ -7,6 +7,24 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.7.1 - 2026-09-14
+
+### Added
+
+- Optional `allowed_root` path boundaries for the Python API, batch conversion,
+  facade, and CLI, including symlink-aware validation for untrusted integrations.
+
+### Changed
+
+- Refactored batch candidate planning and execution into focused helpers without
+  changing the default local path behavior.
+- Documented the local filesystem trust model and secure integration guidance.
+
+### Fixed
+
+- Removed redundant Pillow exception handling and clarified the related test
+  assertion.
+
 ## 1.7.0 - 2026-09-13
 
 ### Added
