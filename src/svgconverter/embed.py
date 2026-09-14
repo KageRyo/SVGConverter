@@ -6,7 +6,7 @@ import base64
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 from .errors import ConversionError, InputPathError, UnsupportedImageError
 from .models import EmbedOptions
@@ -52,7 +52,7 @@ def _read_image_metadata(input_path: Path) -> tuple[int, int, str]:
             return image.width, image.height, mime_type
     except UnsupportedImageError:
         raise
-    except (OSError, UnidentifiedImageError) as error:
+    except OSError as error:
         raise ConversionError(f"Cannot read image {input_path}: {error}") from error
 
 
