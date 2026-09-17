@@ -184,13 +184,16 @@ svgconverter-gui
 
 開發環境仍可用 `python main.py` 啟動相同 GUI。可選取一或多個檔案，或選擇一個資料夾；轉換時會以
 非阻塞方式顯示進度與已轉換／略過／失敗摘要。可在檔案之間取消，個別檔案錯誤會在批次結束後顯示，
-不會關閉應用程式。GUI 支援正體中文、English、日文，並提供以下轉換設定：
+不會關閉應用程式。模式選項會直接說明結果：**保持原圖外觀（Embed）**適合照片、截圖與一般圖片；
+**轉成向量路徑（Vectorize）**適合 Logo、Icon、插圖與高對比線稿。GUI 支援正體中文、English、日文，
+並提供以下轉換設定：
 
-- 選擇 `embed` 或 `vectorize` 模式。
+- 選擇 `embed` 或 `vectorize` 模式；前者會把點陣資料嵌入 SVG 的 `<image>`，後者會把影像描繪成
+  SVG 的 `<path>`。
 - 選擇輸出資料夾、是否覆寫既有 SVG，以及是否遞迴處理子資料夾。
-- 設定 embed 的縮放、JPEG 品質、PNG 壓縮與 PNG 最佳化。
-- 設定常用的 vectorize 選項，例如色彩模式、階層方式、曲線模式、移除小區域、色彩精度、圖層差異
-  與路徑精度。
+- 需要時展開**進階設定**，設定 embed 的縮放、JPEG 品質、PNG 壓縮、PNG 最佳化，以及常用的
+  vectorize 選項。GUI 會在原處說明 px 尺寸、JPEG 品質（1–95）、PNG 壓縮（0–9）與 VTracer
+  控制項；數值欄位留白會使用後端預設值。
 
 和命令列與 Python API 一樣，`vectorize` 模式需要安裝選用的 `vectorize` extra。
 

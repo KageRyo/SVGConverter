@@ -131,6 +131,26 @@ def test_input_summary_describes_multiple_selected_files() -> None:
     assert input_summary_text() == "2 files selected"
 
 
+def test_mode_hint_explains_the_selected_conversion_outcome() -> None:
+    app = object.__new__(SVGConverterApp)
+    app.locale = "en_US"
+    app.translations = {
+        "en_US": {
+            "embed_mode_hint": "Keep the original appearance.",
+            "vectorize_mode_hint": "Create editable vector paths.",
+        }
+    }
+    app.mode_var = FakeVar("embed")
+    mode_hint_text = getattr(app, "_mode_hint_text", None)
+
+    assert callable(mode_hint_text)
+    assert mode_hint_text() == "Keep the original appearance."
+
+    app.mode_var.set("vectorize")
+
+    assert mode_hint_text() == "Create editable vector paths."
+
+
 def test_selected_inputs_are_converted_only_after_explicit_action(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

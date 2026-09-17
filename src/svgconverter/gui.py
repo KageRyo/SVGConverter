@@ -222,6 +222,10 @@ class SVGConverterApp:
         self.vectorize_mode_button.grid(
             row=0, column=2, padx=(4, 10), pady=8, sticky=tk.W
         )
+        self.mode_hint = ttk.Label(self.mode_frame, wraplength=500)
+        self.mode_hint.grid(
+            row=1, column=0, columnspan=3, padx=10, pady=(0, 8), sticky=tk.W
+        )
 
         self.output_frame = ttk.LabelFrame(controls)
         self.output_frame.pack(fill=tk.X, pady=(10, 0))
@@ -445,6 +449,7 @@ class SVGConverterApp:
         self.mode_label.config(text=text["mode"])
         self.embed_mode_button.config(text=text["embed_mode"])
         self.vectorize_mode_button.config(text=text["vectorize_mode"])
+        self.mode_hint.config(text=self._mode_hint_text())
         self.output_frame.config(text=text["output_directory"])
         self.output_dir_label.config(text=text["output_directory"])
         self.output_dir_button.config(text=text["browse"])
@@ -480,6 +485,14 @@ class SVGConverterApp:
         self._update_advanced_visibility()
         self._update_option_state()
 
+    def _mode_hint_text(self) -> str:
+        key = (
+            "embed_mode_hint"
+            if self.mode_var.get() == "embed"
+            else "vectorize_mode_hint"
+        )
+        return self._text[key]
+
     def toggle_advanced_settings(self) -> None:
         """Toggle visibility of the advanced conversion controls."""
 
@@ -497,6 +510,7 @@ class SVGConverterApp:
 
         if self._running:
             return
+        self.mode_hint.config(text=self._mode_hint_text())
         for widget in self._always_enabled_settings:
             widget.configure(state=tk.NORMAL)
         embed_enabled = self.mode_var.get() == "embed"
