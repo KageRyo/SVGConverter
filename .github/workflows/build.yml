@@ -43,6 +43,24 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install . pyinstaller
+      - name: Smoke test installed CLI conversion
+        shell: pwsh
+        run: |
+          $inputPath = Join-Path $env:RUNNER_TEMP "svgconverter-input.png"
+          $outputPath = Join-Path $env:RUNNER_TEMP "svgconverter-output.svg"
+          $env:SVGCONVERTER_INPUT = $inputPath
+          python -c "import os; from PIL import Image; Image.new('RGB', (2, 2), (25, 50, 75)).save(os.environ['SVGCONVERTER_INPUT'])"
+          svgconverter $inputPath --output $outputPath
+          if (-not (Test-Path -LiteralPath $outputPath -PathType Leaf)) {
+            throw "SVGConverter did not create the expected output file."
+          }
+          [xml]$document = Get-Content -Raw -LiteralPath $outputPath
+          if ($document.DocumentElement.LocalName -ne "svg") {
+            throw "The conversion output root element is not SVG."
+          }
+          if ($document.DocumentElement.NamespaceURI -ne "http://www.w3.org/2000/svg") {
+            throw "The conversion output is missing the SVG namespace."
+          }
       - name: Build standalone GUI executable
         run: >
           pyinstaller --noconfirm --clean --onefile --windowed
