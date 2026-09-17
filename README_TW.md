@@ -158,7 +158,7 @@ def report(progress: ConversionProgress) -> None:
 batch = convert_paths(
     ["logo.png", "photo.jpg"], "./svg-output", progress_callback=report
 )
-print(result.success_count, result.skipped_count, result.failure_count)
+print(batch.success_count, batch.skipped_count, batch.failure_count)
 print(metric.input_bytes, metric.embedded_raster_bytes, metric.svg_bytes)
 ```
 
