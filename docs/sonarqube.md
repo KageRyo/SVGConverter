@@ -45,15 +45,35 @@ The scanner configuration lives in [`sonar-project.properties`](../sonar-project
 The GUI remains part of Sonar source analysis, but is excluded from the
 coverage percentage because its event loop is an interactive boundary.
 
+### S8707 disposition for issue #52
+
 The Python `pythonsecurity:S8707` rule is intended to catch path injection in
-agentic workflows. SVGConverter itself is a local CLI/library and does not
-accept HTTP requests or run an agent, so its normal caller-selected paths are
-not treated as a remote attack surface. Integrations that do accept untrusted
-path values should pass `allowed_root` (or the CLI's `--allowed-root`), which
-resolves candidates and rejects input, output, and symlink paths outside the
-configured directory. Review the remaining baseline finding in SonarQube Cloud
-against the actual deployment boundary before changing its disposition; do
-not use a source exclusion to hide a new path flow.
+agentic workflows. The issue #52 review snapshot (Sonar analysis
+`37961595-155b-459a-94e6-f9baee3b2dc5`) contained three open findings from the
+same rule:
+
+| Sonar issue | Location | Reported sink | Disposition |
+| --- | --- | --- | --- |
+| `AaCZij63wC-YvzveLLyz` | `src/svgconverter/converter.py:210` | `os.replace(staged_output, destination)` | Accept design choice |
+| `AaCZij4vwC-YvzveLLyx` | `src/svgconverter/embed.py:113` | `source.read_bytes()` | Accept design choice |
+| `AaCZij63wC-YvzveLLyy` | `src/svgconverter/converter.py:192` | `destination.parent.mkdir(...)` | Accept design choice |
+
+These findings are not an unreviewed path flow. SVGConverter is a local
+CLI/library and does not accept HTTP requests or run an agent, so its default
+caller-selected paths are intentional. Integrations that do accept untrusted
+path values must pass `allowed_root` (or the CLI's `--allowed-root`); the
+converter resolves candidates and rejects input, output, and symlink paths
+outside the configured directory. Making that boundary mandatory would break
+the public local API contract.
+
+When these findings are present in SonarQube Cloud, mark each one as
+`Accepted` with this rationale:
+
+> SVGConverter is a local CLI/library with no HTTP or agent boundary. Caller-selected paths are intentional for the default local API. Untrusted integrations must use `allowed_root`/`--allowed-root`, which resolves and confines input, output, and symlink paths. Requiring this option by default would break the public API contract; this is an accepted design choice, not an unexplained path flow.
+
+Do not use `//NOSONAR` or a source exclusion for these findings. After the
+next `main` analysis, verify that the disposition is retained and that no new
+unexplained S8707 finding appears.
 
 ## Baseline rollout
 
