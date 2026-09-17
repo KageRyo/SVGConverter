@@ -7,6 +7,23 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.7.2 - 2026-09-17
+
+### Added
+
+- Added Windows CI coverage for an installed CLI conversion and validation of
+  the generated SVG document.
+
+### Changed
+
+- Documented the accepted design-choice dispositions for the three Sonar S8707
+  findings and the `allowed_root` boundary for untrusted integrations.
+
+### Fixed
+
+- Corrected the Python API batch examples in both README files to report the
+  `BatchResult` returned by `convert_paths()`.
+
 ## 1.7.1 - 2026-09-14
 
 ### Added
