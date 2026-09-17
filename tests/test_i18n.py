@@ -65,6 +65,21 @@ def test_bundled_translations_have_all_supported_locales() -> None:
                 "cancelled",
                 "errors_title",
                 "error",
+                "result_success",
+                "result_partial",
+                "result_skipped",
+                "result_cancelled",
+                "result_failed",
+                "result_counts",
+                "result_single_size",
+                "result_batch_size",
+                "result_embedded_size",
+                "result_output_same_as_source",
+                "result_output_custom",
+                "result_no_output",
+                "result_failures",
+                "open_output_folder",
+                "convert_more",
             }
         )
     }

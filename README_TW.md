@@ -195,6 +195,9 @@ svgconverter-gui
   vectorize 選項。GUI 會在原處說明 px 尺寸、JPEG 品質（1–95）、PNG 壓縮（0–9）與 VTracer
   控制項；數值欄位留白會使用後端預設值。
 
+轉換後，結果區會說明批次是完成、略過、部分失敗或取消，並顯示已轉換／略過／失敗數量；有 metrics
+時也會顯示來源與 SVG 大小、輸出位置，並提供**開啟輸出資料夾**與**轉換其他圖片**操作。
+
 和命令列與 Python API 一樣，`vectorize` 模式需要安裝選用的 `vectorize` extra。
 
 支援此功能的 release 中，Windows 使用者可從 GitHub Release 頁面下載獨立的
