@@ -7,6 +7,24 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.8.0 - 2026-09-17
+
+### Added
+
+- Reworked the GUI into an explicit select, configure, and convert workflow.
+- Added progressive disclosure for general, embed, and vectorize controls.
+- Added outcome-oriented mode descriptions and inline guidance for advanced
+  settings in Traditional Chinese, English, and Japanese.
+- Added inline completion feedback with batch counts, conversion metrics,
+  output-folder access, and a reset action for converting more images.
+
+### Changed
+
+- Selecting files or a folder no longer starts conversion immediately; users
+  now confirm settings and start conversion explicitly.
+- GUI documentation now explains raster embedding, vector paths, and advanced
+  option trade-offs in plain language.
+
 ## 1.7.2 - 2026-09-17
 
 ### Added
