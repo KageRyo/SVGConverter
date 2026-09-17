@@ -24,6 +24,8 @@ def test_bundled_translations_have_all_supported_locales() -> None:
                 "mode",
                 "embed_mode",
                 "vectorize_mode",
+                "embed_mode_hint",
+                "vectorize_mode_hint",
                 "output_directory",
                 "browse",
                 "output_directory_hint",

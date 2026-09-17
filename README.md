@@ -198,16 +198,21 @@ svgconverter-gui
 The legacy development command `python main.py` starts the same GUI. Select one
 or more files, or a folder, to convert with visible non-blocking progress and a
 converted/skipped/failed summary. You can cancel between files; any per-file
-errors are shown after the batch without closing the application. The GUI offers
-Traditional Chinese, English, and Japanese, plus the following conversion
-settings:
+errors are shown after the batch without closing the application. The mode choices
+are described by their expected result: **Keep original appearance (Embed)** is
+recommended for photos, screenshots, and general images, while **Convert to vector
+paths (Vectorize)** is recommended for logos, icons, illustrations, and
+high-contrast line art. The GUI offers Traditional Chinese, English, and Japanese,
+plus the following conversion settings:
 
-- Select `embed` or `vectorize` mode.
+- Select `embed` or `vectorize` mode; the first choice embeds raster data in an SVG
+  `<image>`, while the second traces the image into SVG `<path>` elements.
 - Choose an output directory, overwrite existing SVG files, and optionally
   include nested folders.
-- Configure embed resizing, JPEG quality, PNG compression, and PNG optimization.
-- Configure common vectorize options such as color mode, hierarchy, curve mode,
-  speckle filtering, color precision, layer difference, and path precision.
+- Expand **Advanced settings** when needed to configure embed resizing, JPEG quality,
+  PNG compression, PNG optimization, and common vectorize options. The GUI explains
+  pixel dimensions, JPEG quality (1–95), PNG compression (0–9), and the VTracer
+  controls in place; blank numeric fields keep the backend defaults.
 
 Vectorize mode requires the optional `vectorize` extra, just like the CLI and
 Python API.
