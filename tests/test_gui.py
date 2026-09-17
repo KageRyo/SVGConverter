@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from queue import Queue
 from threading import Event
+from unittest.mock import Mock
 
 import pytest
 
@@ -51,6 +52,146 @@ def test_format_failure_details_lists_each_failed_input() -> None:
     assert format_failure_details(result) == (
         "broken.png: not readable\nunsupported.gif: unsupported"
     )
+
+
+def test_select_files_records_selection_without_starting_conversion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = object.__new__(SVGConverterApp)
+    app.root = object()
+    app.locale = "en_US"
+    app.translations = {"en_US": {"select_files": "Select Files"}}
+    app._set_selected_inputs = Mock()
+    app._start_conversion = Mock()
+    selected_files = ("photo.png", "logo.jpg")
+    monkeypatch.setattr(
+        gui_module.filedialog,
+        "askopenfilenames",
+        lambda **_: selected_files,
+    )
+
+    app.select_files()
+
+    app._set_selected_inputs.assert_called_once_with(selected_files, "files")
+    app._start_conversion.assert_not_called()
+
+
+def test_select_folder_records_selection_without_starting_conversion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = object.__new__(SVGConverterApp)
+    app.root = object()
+    app.locale = "en_US"
+    app.translations = {"en_US": {"select_folder": "Select Folder"}}
+    app._set_selected_inputs = Mock()
+    app._start_conversion = Mock()
+    monkeypatch.setattr(
+        gui_module.filedialog,
+        "askdirectory",
+        lambda **_: "/tmp/images",
+    )
+
+    app.select_folder()
+
+    app._set_selected_inputs.assert_called_once_with(("/tmp/images",), "folder")
+    app._start_conversion.assert_not_called()
+
+
+def test_convert_selected_starts_conversion_for_recorded_inputs() -> None:
+    app = object.__new__(SVGConverterApp)
+    app._selected_input_paths = ("photo.png", "logo.jpg")
+    app._start_conversion = Mock()
+    convert_selected = getattr(app, "convert_selected", None)
+
+    assert callable(convert_selected)
+    convert_selected()
+
+    app._start_conversion.assert_called_once_with(app._selected_input_paths)
+
+
+def test_input_summary_describes_multiple_selected_files() -> None:
+    app = object.__new__(SVGConverterApp)
+    app._selected_input_paths = ("photo.png", "logo.jpg")
+    app._selected_input_kind = "files"
+    app.locale = "en_US"
+    app.translations = {
+        "en_US": {
+            "no_input_selected": "No input selected",
+            "selected_file": "Selected file: {file}",
+            "selected_files": "{count} files selected",
+            "selected_folder": "Selected folder: {folder}",
+        }
+    }
+    input_summary_text = getattr(app, "_input_summary_text", None)
+
+    assert callable(input_summary_text)
+    assert input_summary_text() == "2 files selected"
+
+
+def test_selected_inputs_are_converted_only_after_explicit_action(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = object.__new__(SVGConverterApp)
+    app.root = object()
+    app.locale = "en_US"
+    app.translations = {"en_US": {"select_files": "Select Files"}}
+    app._selected_input_paths = ()
+    app._selected_input_kind = None
+    app._refresh_input_summary = Mock()
+    app._update_action_state = Mock()
+    app._start_conversion = Mock()
+    selected_files = ("photo.png",)
+    monkeypatch.setattr(
+        gui_module.filedialog,
+        "askopenfilenames",
+        lambda **_: selected_files,
+    )
+
+    app.select_files()
+
+    app._start_conversion.assert_not_called()
+    app.convert_selected()
+
+    app._start_conversion.assert_called_once_with(selected_files)
+
+
+def test_output_summary_makes_default_and_custom_locations_explicit() -> None:
+    app = object.__new__(SVGConverterApp)
+    app.locale = "en_US"
+    app.translations = {
+        "en_US": {
+            "output_same_as_source": "Save beside each source image",
+            "output_custom": "Save to: {path}",
+        }
+    }
+    app.output_dir_var = FakeVar("")
+
+    assert app._output_summary_text() == "Save beside each source image"
+
+    app.output_dir_var = FakeVar("  /tmp/svg-output  ")
+
+    assert app._output_summary_text() == "Save to: /tmp/svg-output"
+
+
+def test_convert_button_is_disabled_without_inputs_and_enabled_after_selection() -> (
+    None
+):
+    app = object.__new__(SVGConverterApp)
+    app._running = False
+    app._selected_input_paths = ()
+    app.files_button = Mock()
+    app.folder_button = Mock()
+    app.convert_button = Mock()
+
+    app._update_action_state()
+
+    app.convert_button.configure.assert_called_once_with(state=gui_module.tk.DISABLED)
+
+    app.convert_button.reset_mock()
+    app._selected_input_paths = ("photo.png",)
+    app._update_action_state()
+
+    app.convert_button.configure.assert_called_once_with(state=gui_module.tk.NORMAL)
 
 
 def test_build_embed_options_maps_fields_and_keeps_defaults_unset() -> None:

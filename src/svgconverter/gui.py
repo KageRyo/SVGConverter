@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import tkinter as tk
 from dataclasses import dataclass
+from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Thread
 from tkinter import filedialog, messagebox, ttk
@@ -39,6 +40,7 @@ _IMAGE_FILE_TYPES = [
 ]
 _EventKind = Literal["progress", "done", "error"]
 _GuiEvent = tuple[_EventKind, ConversionProgress | BatchResult | Exception]
+_InputSelectionKind = Literal["files", "folder"]
 _VECTORIZE_COLOR_MODES = ("color", "binary")
 _VECTORIZE_HIERARCHIES = ("stacked", "cutout")
 _VECTORIZE_CURVE_MODES = ("pixel", "polygon", "spline")
@@ -151,12 +153,16 @@ class SVGConverterApp:
         self._cancel_event = Event()
         self._worker: Thread | None = None
         self._running = False
+        self._selected_input_paths: tuple[str, ...] = ()
+        self._selected_input_kind: _InputSelectionKind | None = None
 
         initial_name = translation_for(self.locale, self.translations)["name"]
         self.language_var = tk.StringVar(value=initial_name)
         self.status_var = tk.StringVar()
+        self.input_summary_var = tk.StringVar()
         self.mode_var = tk.StringVar(value="embed")
         self.output_dir_var = tk.StringVar()
+        self.output_summary_var = tk.StringVar()
         self.overwrite_var = tk.BooleanVar(value=False)
         self.recursive_var = tk.BooleanVar(value=False)
 
@@ -176,6 +182,24 @@ class SVGConverterApp:
 
         controls = ttk.Frame(self.root, padding=20)
         controls.pack(fill=tk.BOTH, expand=True)
+
+        self.input_frame = ttk.LabelFrame(controls)
+        self.input_frame.pack(fill=tk.X)
+        self.input_frame.columnconfigure(0, weight=1)
+        self.input_summary = ttk.Label(
+            self.input_frame, textvariable=self.input_summary_var, wraplength=500
+        )
+        self.input_summary.grid(
+            row=0, column=0, columnspan=2, padx=10, pady=(8, 4), sticky=tk.W
+        )
+        self.files_button = ttk.Button(self.input_frame, command=self.select_files)
+        self.files_button.grid(
+            row=1, column=0, padx=(10, 4), pady=(4, 10), sticky=tk.EW
+        )
+        self.folder_button = ttk.Button(self.input_frame, command=self.select_folder)
+        self.folder_button.grid(
+            row=1, column=1, padx=(4, 10), pady=(4, 10), sticky=tk.EW
+        )
 
         self.mode_frame = ttk.LabelFrame(controls)
         self.mode_frame.pack(fill=tk.X)
@@ -215,10 +239,17 @@ class SVGConverterApp:
         self.output_dir_button.grid(
             row=0, column=2, padx=(4, 10), pady=(8, 2), sticky=tk.E
         )
+        self.output_summary = ttk.Label(
+            self.output_frame, textvariable=self.output_summary_var, wraplength=500
+        )
+        self.output_summary.grid(
+            row=1, column=0, columnspan=3, padx=10, pady=(0, 2), sticky=tk.W
+        )
         self.output_dir_hint = ttk.Label(self.output_frame, wraplength=500)
         self.output_dir_hint.grid(
-            row=1, column=0, columnspan=3, padx=10, pady=(0, 8), sticky=tk.W
+            row=2, column=0, columnspan=3, padx=10, pady=(0, 8), sticky=tk.W
         )
+        self.output_dir_var.trace_add("write", self._on_output_directory_changed)
 
         self.general_options_frame = ttk.LabelFrame(controls)
         self.general_options_frame.pack(fill=tk.X, pady=(10, 0))
@@ -330,10 +361,10 @@ class SVGConverterApp:
 
         actions = ttk.Frame(controls)
         actions.pack(fill=tk.X, pady=(14, 0))
-        self.files_button = ttk.Button(actions, command=self.select_files)
-        self.files_button.pack(fill=tk.X)
-        self.folder_button = ttk.Button(actions, command=self.select_folder)
-        self.folder_button.pack(fill=tk.X, pady=(8, 0))
+        self.convert_button = ttk.Button(
+            actions, command=self.convert_selected, state=tk.DISABLED
+        )
+        self.convert_button.pack(fill=tk.X)
         self.cancel_button = ttk.Button(
             actions, command=self.cancel_conversion, state=tk.DISABLED
         )
@@ -402,6 +433,7 @@ class SVGConverterApp:
 
     def _refresh_text(self) -> None:
         text = self._text
+        self.input_frame.config(text=text["input"])
         self.mode_frame.config(text=text["mode"])
         self.mode_label.config(text=text["mode"])
         self.embed_mode_button.config(text=text["embed_mode"])
@@ -431,7 +463,10 @@ class SVGConverterApp:
         self.vectorize_options_hint.config(text=text["vectorize_options_hint"])
         self.files_button.config(text=text["select_files"])
         self.folder_button.config(text=text["select_folder"])
+        self.convert_button.config(text=text["convert"])
         self.cancel_button.config(text=text["cancel"])
+        self._refresh_input_summary()
+        self._refresh_output_summary()
         if not self._running:
             self.status_var.set(text["ready"])
         self._update_option_state()
@@ -456,6 +491,16 @@ class SVGConverterApp:
             widget.configure(state=tk.DISABLED if embed_enabled else tk.NORMAL)
         for widget in self._vectorize_choice_widgets:
             widget.configure(state=tk.DISABLED if embed_enabled else "readonly")
+        self._update_action_state()
+
+    def _update_action_state(self) -> None:
+        if self._running:
+            return
+        self.files_button.configure(state=tk.NORMAL)
+        self.folder_button.configure(state=tk.NORMAL)
+        self.convert_button.configure(
+            state=tk.NORMAL if self._selected_input_paths else tk.DISABLED
+        )
 
     def _build_conversion_options(self) -> GuiConversionOptions:
         """Validate visible controls and return an immutable conversion snapshot."""
@@ -505,7 +550,7 @@ class SVGConverterApp:
             filetypes=_IMAGE_FILE_TYPES,
         )
         if files:
-            self._start_conversion(files)
+            self._set_selected_inputs(files, "files")
 
     def select_folder(self) -> None:
         """Select a folder whose immediate supported images will be converted."""
@@ -514,7 +559,51 @@ class SVGConverterApp:
             parent=self.root, title=self._text["select_folder"]
         )
         if folder:
-            self._start_conversion((folder,))
+            self._set_selected_inputs((folder,), "folder")
+
+    def _set_selected_inputs(
+        self, input_paths: tuple[str, ...] | list[str], kind: _InputSelectionKind
+    ) -> None:
+        self._selected_input_paths = tuple(input_paths)
+        self._selected_input_kind = kind
+        self._refresh_input_summary()
+        self._update_action_state()
+
+    def _input_summary_text(self) -> str:
+        if not self._selected_input_paths:
+            return self._text["no_input_selected"]
+        if self._selected_input_kind == "folder":
+            folder = Path(self._selected_input_paths[0]).name
+            return self._text["selected_folder"].format(folder=folder)
+        if len(self._selected_input_paths) == 1:
+            file_name = Path(self._selected_input_paths[0]).name
+            return self._text["selected_file"].format(file=file_name)
+        return self._text["selected_files"].format(
+            count=len(self._selected_input_paths)
+        )
+
+    def _refresh_input_summary(self) -> None:
+        self.input_summary_var.set(self._input_summary_text())
+
+    def _output_summary_text(self) -> str:
+        output_dir = self.output_dir_var.get().strip()
+        if not output_dir:
+            return self._text["output_same_as_source"]
+        return self._text["output_custom"].format(path=output_dir)
+
+    def _refresh_output_summary(self) -> None:
+        self.output_summary_var.set(self._output_summary_text())
+
+    def _on_output_directory_changed(self, *_: str) -> None:
+        self._refresh_output_summary()
+
+    def convert_selected(self) -> None:
+        """Start conversion for the currently selected files or folder."""
+
+        if not self._selected_input_paths:
+            self.status_var.set(self._text["no_input_selected"])
+            return
+        self._start_conversion(self._selected_input_paths)
 
     def select_output_directory(self) -> None:
         """Choose where generated SVG files should be written."""
@@ -654,6 +743,11 @@ class SVGConverterApp:
         state = tk.DISABLED if running else tk.NORMAL
         self.files_button.config(state=state)
         self.folder_button.config(state=state)
+        self.convert_button.config(
+            state=tk.DISABLED
+            if running
+            else (tk.NORMAL if self._selected_input_paths else tk.DISABLED)
+        )
         self.cancel_button.config(state=tk.NORMAL if running else tk.DISABLED)
         if running:
             for widget in self._settings_widgets:
