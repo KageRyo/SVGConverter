@@ -163,6 +163,7 @@ class SVGConverterApp:
         self.mode_var = tk.StringVar(value="embed")
         self.output_dir_var = tk.StringVar()
         self.output_summary_var = tk.StringVar()
+        self.advanced_expanded = tk.BooleanVar(value=False)
         self.overwrite_var = tk.BooleanVar(value=False)
         self.recursive_var = tk.BooleanVar(value=False)
 
@@ -251,8 +252,14 @@ class SVGConverterApp:
         )
         self.output_dir_var.trace_add("write", self._on_output_directory_changed)
 
-        self.general_options_frame = ttk.LabelFrame(controls)
-        self.general_options_frame.pack(fill=tk.X, pady=(10, 0))
+        self.advanced_toggle = ttk.Button(
+            controls, command=self.toggle_advanced_settings
+        )
+        self.advanced_toggle.pack(fill=tk.X, pady=(10, 0))
+        self.advanced_frame = ttk.Frame(controls)
+
+        self.general_options_frame = ttk.LabelFrame(self.advanced_frame)
+        self.general_options_frame.pack(fill=tk.X)
         self.overwrite_checkbutton = ttk.Checkbutton(
             self.general_options_frame, variable=self.overwrite_var
         )
@@ -266,7 +273,7 @@ class SVGConverterApp:
             row=0, column=1, padx=(8, 10), pady=8, sticky=tk.W
         )
 
-        self.mode_options_frame = ttk.Frame(controls)
+        self.mode_options_frame = ttk.Frame(self.advanced_frame)
         self.mode_options_frame.pack(fill=tk.X, pady=(10, 0))
         self.embed_options_frame = ttk.LabelFrame(self.mode_options_frame)
         self.embed_options_frame.pack(fill=tk.X)
@@ -442,6 +449,7 @@ class SVGConverterApp:
         self.output_dir_label.config(text=text["output_directory"])
         self.output_dir_button.config(text=text["browse"])
         self.output_dir_hint.config(text=text["output_directory_hint"])
+        self.advanced_toggle.config(text=text["advanced_settings"])
         self.general_options_frame.config(text=text["general_options"])
         self.overwrite_checkbutton.config(text=text["overwrite"])
         self.recursive_checkbutton.config(text=text["recursive"])
@@ -469,7 +477,20 @@ class SVGConverterApp:
         self._refresh_output_summary()
         if not self._running:
             self.status_var.set(text["ready"])
+        self._update_advanced_visibility()
         self._update_option_state()
+
+    def toggle_advanced_settings(self) -> None:
+        """Toggle visibility of the advanced conversion controls."""
+
+        self.advanced_expanded.set(not bool(self.advanced_expanded.get()))
+        self._update_advanced_visibility()
+
+    def _update_advanced_visibility(self) -> None:
+        if self.advanced_expanded.get():
+            self.advanced_frame.pack(fill=tk.X, pady=(10, 0))
+        else:
+            self.advanced_frame.pack_forget()
 
     def _update_option_state(self) -> None:
         """Enable controls belonging to the selected conversion mode."""

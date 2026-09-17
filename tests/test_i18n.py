@@ -29,6 +29,7 @@ def test_bundled_translations_have_all_supported_locales() -> None:
                 "output_directory_hint",
                 "output_same_as_source",
                 "output_custom",
+                "advanced_settings",
                 "general_options",
                 "overwrite",
                 "recursive",

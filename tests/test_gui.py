@@ -31,6 +31,9 @@ class FakeVar:
     def get(self) -> object:
         return self.value
 
+    def set(self, value: object) -> None:
+        self.value = value
+
 
 def fake_app_for_options(**values: object) -> SVGConverterApp:
     app = object.__new__(SVGConverterApp)
@@ -192,6 +195,57 @@ def test_convert_button_is_disabled_without_inputs_and_enabled_after_selection()
     app._update_action_state()
 
     app.convert_button.configure.assert_called_once_with(state=gui_module.tk.NORMAL)
+
+
+def test_advanced_settings_toggle_changes_visibility() -> None:
+    app = object.__new__(SVGConverterApp)
+    app.advanced_expanded = FakeVar(False)
+    app.advanced_frame = Mock()
+    toggle_advanced_settings = getattr(app, "toggle_advanced_settings", None)
+
+    assert callable(toggle_advanced_settings)
+
+    toggle_advanced_settings()
+
+    assert app.advanced_expanded.get() is True
+    app.advanced_frame.pack.assert_called_once_with(fill=gui_module.tk.X, pady=(10, 0))
+
+    toggle_advanced_settings()
+
+    assert app.advanced_expanded.get() is False
+    app.advanced_frame.pack_forget.assert_called_once_with()
+
+
+def test_toggling_advanced_settings_preserves_option_values() -> None:
+    app = fake_app_for_options(
+        mode_var="embed",
+        output_dir_var="/tmp/svg-output",
+        overwrite_var=True,
+        recursive_var=True,
+        max_width_var="1200",
+        max_height_var="800",
+        jpeg_quality_var="85",
+        png_compress_level_var="9",
+        optimize_png_var=True,
+        color_mode_var="color",
+        hierarchical_var="stacked",
+        curve_mode_var="spline",
+        filter_speckle_var="3",
+        color_precision_var="6",
+        layer_difference_var="10",
+        path_precision_var="8",
+    )
+    app.advanced_expanded = FakeVar(False)
+    app.advanced_frame = Mock()
+    toggle_advanced_settings = getattr(app, "toggle_advanced_settings", None)
+
+    assert callable(toggle_advanced_settings)
+    before = app._build_conversion_options()
+
+    toggle_advanced_settings()
+    toggle_advanced_settings()
+
+    assert app._build_conversion_options() == before
 
 
 def test_build_embed_options_maps_fields_and_keeps_defaults_unset() -> None:
