@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import tkinter as tk
 from dataclasses import dataclass
 from pathlib import Path
@@ -140,6 +143,71 @@ def format_failure_details(result: BatchResult) -> str:
     )
 
 
+def format_byte_size(value: int) -> str:
+    """Format a byte count for compact display in the result panel."""
+
+    size = float(value)
+    for unit in ("B", "KB", "MB", "GB"):
+        if size < 1024 or unit == "GB":
+            return f"{int(size)} {unit}" if unit == "B" else f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{value} B"
+
+
+def result_status_key(result: BatchResult) -> str:
+    """Choose a translated result heading for a completed batch."""
+
+    if result.cancelled:
+        return "result_cancelled"
+    if result.failure_count and result.success_count:
+        return "result_partial"
+    if result.failure_count:
+        return "result_failed"
+    if result.skipped_count and not result.success_count:
+        return "result_skipped"
+    return "result_success"
+
+
+def format_result_counts(result: BatchResult, text: dict[str, str]) -> str:
+    """Format the authoritative converted/skipped/failed counters."""
+
+    return text["result_counts"].format(
+        converted=result.success_count,
+        skipped=result.skipped_count,
+        failed=result.failure_count,
+    )
+
+
+def format_result_metrics(result: BatchResult, text: dict[str, str]) -> str:
+    """Format available source, SVG, and embedded-raster size metrics."""
+
+    if not result.metrics:
+        return ""
+    if len(result.metrics) == 1:
+        metric = result.metrics[0]
+        lines = [
+            text["result_single_size"].format(
+                input=metric.input_path.name,
+                output=metric.output_path.name,
+                input_size=format_byte_size(metric.input_bytes),
+                svg_size=format_byte_size(metric.svg_bytes),
+            )
+        ]
+    else:
+        lines = [
+            text["result_batch_size"].format(
+                input_size=format_byte_size(result.total_input_bytes),
+                svg_size=format_byte_size(result.total_svg_bytes),
+            )
+        ]
+    embedded_size = result.total_embedded_raster_bytes
+    if embedded_size is not None:
+        lines.append(
+            text["result_embedded_size"].format(size=format_byte_size(embedded_size))
+        )
+    return "\n".join(lines)
+
+
 class SVGConverterApp:
     """The standalone GUI application."""
 
@@ -155,11 +223,19 @@ class SVGConverterApp:
         self._running = False
         self._selected_input_paths: tuple[str, ...] = ()
         self._selected_input_kind: _InputSelectionKind | None = None
+        self._last_result: BatchResult | None = None
+        self._last_conversion_options: GuiConversionOptions | None = None
+        self._result_output_folder: Path | None = None
 
         initial_name = translation_for(self.locale, self.translations)["name"]
         self.language_var = tk.StringVar(value=initial_name)
         self.status_var = tk.StringVar()
         self.input_summary_var = tk.StringVar()
+        self.result_title_var = tk.StringVar()
+        self.result_summary_var = tk.StringVar()
+        self.result_metrics_var = tk.StringVar()
+        self.result_output_var = tk.StringVar()
+        self.result_details_var = tk.StringVar()
         self.mode_var = tk.StringVar(value="embed")
         self.output_dir_var = tk.StringVar()
         self.output_summary_var = tk.StringVar()
@@ -385,6 +461,40 @@ class SVGConverterApp:
         self.status = ttk.Label(controls, textvariable=self.status_var, wraplength=500)
         self.status.pack(fill=tk.X, pady=(8, 0))
 
+        self.result_frame = ttk.LabelFrame(controls)
+        self.result_title = ttk.Label(
+            self.result_frame, textvariable=self.result_title_var
+        )
+        self.result_title.pack(fill=tk.X, padx=10, pady=(8, 2))
+        self.result_summary = ttk.Label(
+            self.result_frame, textvariable=self.result_summary_var, wraplength=500
+        )
+        self.result_summary.pack(fill=tk.X, padx=10, pady=2)
+        self.result_metrics = ttk.Label(
+            self.result_frame, textvariable=self.result_metrics_var, wraplength=500
+        )
+        self.result_metrics.pack(fill=tk.X, padx=10, pady=2)
+        self.result_output = ttk.Label(
+            self.result_frame, textvariable=self.result_output_var, wraplength=500
+        )
+        self.result_output.pack(fill=tk.X, padx=10, pady=2)
+        self.result_details = ttk.Label(
+            self.result_frame, textvariable=self.result_details_var, wraplength=500
+        )
+        self.result_details.pack(fill=tk.X, padx=10, pady=2)
+        result_actions = ttk.Frame(self.result_frame)
+        result_actions.pack(fill=tk.X, padx=10, pady=(6, 8))
+        result_actions.columnconfigure(0, weight=1)
+        result_actions.columnconfigure(1, weight=1)
+        self.open_output_button = ttk.Button(
+            result_actions, command=self.open_output_folder, state=tk.DISABLED
+        )
+        self.open_output_button.grid(row=0, column=0, padx=(0, 4), sticky=tk.EW)
+        self.convert_more_button = ttk.Button(
+            result_actions, command=self.reset_for_new_conversion
+        )
+        self.convert_more_button.grid(row=0, column=1, padx=(4, 0), sticky=tk.EW)
+
         self._always_enabled_settings = [
             self.embed_mode_button,
             self.vectorize_mode_button,
@@ -478,12 +588,16 @@ class SVGConverterApp:
         self.folder_button.config(text=text["select_folder"])
         self.convert_button.config(text=text["convert"])
         self.cancel_button.config(text=text["cancel"])
+        self.open_output_button.config(text=text["open_output_folder"])
+        self.convert_more_button.config(text=text["convert_more"])
         self._refresh_input_summary()
         self._refresh_output_summary()
         if not self._running:
             self.status_var.set(text["ready"])
         self._update_advanced_visibility()
         self._update_option_state()
+        if self._last_result is not None:
+            self._render_result_feedback(self._last_result)
 
     def _mode_hint_text(self) -> str:
         key = (
@@ -599,6 +713,7 @@ class SVGConverterApp:
     def _set_selected_inputs(
         self, input_paths: tuple[str, ...] | list[str], kind: _InputSelectionKind
     ) -> None:
+        self._hide_result_feedback()
         self._selected_input_paths = tuple(input_paths)
         self._selected_input_kind = kind
         self._refresh_input_summary()
@@ -660,6 +775,8 @@ class SVGConverterApp:
             return
 
         self._cancel_event.clear()
+        self._hide_result_feedback()
+        self._last_conversion_options = options
         self._set_running(True)
         self.progress.configure(value=0, maximum=1)
         self.status_var.set(self._text["starting"])
@@ -751,6 +868,8 @@ class SVGConverterApp:
         if not isinstance(result, BatchResult):
             return
         self._set_running(False)
+        self._last_result = result
+        self._render_result_feedback(result)
         message_key = "cancelled" if result.cancelled else "done"
         message = self._text[message_key].format(
             converted=result.success_count,
@@ -758,20 +877,95 @@ class SVGConverterApp:
             failed=result.failure_count,
         )
         self.status_var.set(message)
-        if result.failed:
-            details = format_failure_details(result)
-            messagebox.showwarning(
-                self._text["errors_title"],
-                f"{message}\n\n{details}",
-                parent=self.root,
-            )
-        else:
-            messagebox.showinfo("SVGConverter", message, parent=self.root)
 
     def _show_error(self, error: ConversionProgress | BatchResult | Exception) -> None:
         self._set_running(False)
+        self._last_result = None
+        self._result_output_folder = None
+        self.result_title_var.set(self._text["result_failed"])
+        self.result_summary_var.set(str(error))
+        self.result_metrics_var.set("")
+        self.result_output_var.set(self._text["result_no_output"])
+        self.result_details_var.set("")
+        self.open_output_button.configure(state=tk.DISABLED)
+        self.result_frame.pack(fill=tk.X, pady=(12, 0), before=self.language_menu)
         self.status_var.set(self._text["error"])
         messagebox.showerror("SVGConverter", str(error), parent=self.root)
+
+    def _render_result_feedback(self, result: BatchResult) -> None:
+        self._result_output_folder = self._output_folder_for_result(result)
+        self.result_title_var.set(self._text[result_status_key(result)])
+        self.result_summary_var.set(format_result_counts(result, self._text))
+        self.result_metrics_var.set(format_result_metrics(result, self._text))
+        if self._last_conversion_options and self._last_conversion_options.output_dir:
+            self.result_output_var.set(
+                self._text["result_output_custom"].format(
+                    path=self._last_conversion_options.output_dir
+                )
+            )
+        elif result.converted or result.skipped:
+            self.result_output_var.set(self._text["result_output_same_as_source"])
+        else:
+            self.result_output_var.set(self._text["result_no_output"])
+        self.result_details_var.set(
+            self._text["result_failures"].format(details=format_failure_details(result))
+            if result.failed
+            else ""
+        )
+        self.open_output_button.configure(
+            state=tk.NORMAL if self._result_output_folder is not None else tk.DISABLED
+        )
+        self.result_frame.pack(fill=tk.X, pady=(12, 0), before=self.language_menu)
+
+    def _output_folder_for_result(self, result: BatchResult) -> Path | None:
+        if self._last_conversion_options and self._last_conversion_options.output_dir:
+            folder = Path(self._last_conversion_options.output_dir)
+            return folder if folder.is_dir() else None
+        output_paths = [
+            *result.converted,
+            *(item.output_path for item in result.skipped),
+        ]
+        if not output_paths:
+            return None
+        folder = output_paths[0].parent
+        return folder if folder.is_dir() else None
+
+    def _hide_result_feedback(self) -> None:
+        self._last_result = None
+        self._result_output_folder = None
+        result_frame = getattr(self, "result_frame", None)
+        if result_frame is not None:
+            result_frame.pack_forget()
+
+    def reset_for_new_conversion(self) -> None:
+        """Clear the completed result and return to the input-ready state."""
+
+        if self._running:
+            return
+        self._selected_input_paths = ()
+        self._selected_input_kind = None
+        self._last_conversion_options = None
+        self._hide_result_feedback()
+        self.progress.configure(value=0, maximum=1)
+        self._refresh_input_summary()
+        self.status_var.set(self._text["ready"])
+        self._update_action_state()
+
+    def open_output_folder(self) -> None:
+        """Open the most recent conversion's output folder in the OS file manager."""
+
+        folder = self._result_output_folder
+        if folder is None:
+            return
+        try:
+            if sys.platform == "win32":
+                os.startfile(str(folder))  # type: ignore[attr-defined]
+            elif sys.platform == "darwin":
+                subprocess.Popen(["open", str(folder)])
+            else:
+                subprocess.Popen(["xdg-open", str(folder)])
+        except OSError as error:
+            self.status_var.set(str(error))
 
     def _set_running(self, running: bool) -> None:
         self._running = running

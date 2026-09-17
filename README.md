@@ -214,6 +214,11 @@ plus the following conversion settings:
   pixel dimensions, JPEG quality (1–95), PNG compression (0–9), and the VTracer
   controls in place; blank numeric fields keep the backend defaults.
 
+After a run, the result panel reports whether the batch completed, was skipped,
+partially failed, or was cancelled, together with converted/skipped/failed counts.
+It includes source and SVG sizes when metrics are available, identifies the output
+location, and provides **Open output folder** and **Convert more images** actions.
+
 Vectorize mode requires the optional `vectorize` extra, just like the CLI and
 Python API.
 

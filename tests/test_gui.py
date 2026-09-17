@@ -12,6 +12,8 @@ from svgconverter import (
     BatchResult,
     ConversionError,
     ConversionFailure,
+    ConversionMetrics,
+    ConversionSkip,
     EmbedOptions,
     VectorizeOptions,
 )
@@ -20,7 +22,11 @@ from svgconverter.gui import (
     SVGConverterApp,
     build_embed_options,
     build_vectorize_options,
+    format_byte_size,
     format_failure_details,
+    format_result_counts,
+    format_result_metrics,
+    result_status_key,
 )
 
 
@@ -55,6 +61,152 @@ def test_format_failure_details_lists_each_failed_input() -> None:
     assert format_failure_details(result) == (
         "broken.png: not readable\nunsupported.gif: unsupported"
     )
+
+
+def test_result_status_key_distinguishes_completion_outcomes() -> None:
+    skipped = ConversionSkip(Path("existing.png"), Path("existing.svg"), "exists")
+    failure = ConversionFailure(Path("broken.png"), ConversionError("not readable"))
+
+    assert result_status_key(
+        BatchResult(converted=(Path("photo.svg"),), failed=())
+    ) == ("result_success")
+    assert result_status_key(
+        BatchResult(converted=(), failed=(), skipped=(skipped,))
+    ) == ("result_skipped")
+    assert (
+        result_status_key(
+            BatchResult(converted=(Path("photo.svg"),), failed=(failure,))
+        )
+        == "result_partial"
+    )
+    assert result_status_key(BatchResult(converted=(), failed=(failure,))) == (
+        "result_failed"
+    )
+    assert (
+        result_status_key(
+            BatchResult(converted=(Path("photo.svg"),), failed=(), cancelled=True)
+        )
+        == "result_cancelled"
+    )
+
+
+def test_result_counts_and_metrics_are_readable() -> None:
+    metric = ConversionMetrics(
+        input_path=Path("photo.jpg"),
+        output_path=Path("photo.svg"),
+        input_bytes=2048,
+        svg_bytes=4096,
+        embedded_raster_bytes=2048,
+    )
+    result = BatchResult(converted=(Path("photo.svg"),), failed=(), metrics=(metric,))
+    text = {
+        "result_counts": "{converted} converted; {skipped} skipped; {failed} failed.",
+        "result_single_size": "{input} → {output}: {input_size} → {svg_size}",
+        "result_batch_size": "{input_size} input → {svg_size} SVG",
+        "result_embedded_size": "Embedded raster: {size}",
+    }
+
+    assert format_byte_size(2048) == "2.00 KB"
+    assert format_result_counts(result, text) == "1 converted; 0 skipped; 0 failed."
+    assert format_result_metrics(result, text) == (
+        "photo.jpg → photo.svg: 2.00 KB → 4.00 KB\nEmbedded raster: 2.00 KB"
+    )
+
+
+def test_result_feedback_renders_output_location_and_folder_action(
+    tmp_path: Path,
+) -> None:
+    metric = ConversionMetrics(
+        input_path=Path("photo.jpg"),
+        output_path=tmp_path / "photo.svg",
+        input_bytes=2048,
+        svg_bytes=4096,
+        embedded_raster_bytes=2048,
+    )
+    result = BatchResult(
+        converted=(tmp_path / "photo.svg",), failed=(), metrics=(metric,)
+    )
+    app = object.__new__(SVGConverterApp)
+    app.locale = "en_US"
+    app.translations = {
+        "en_US": {
+            "result_success": "Conversion complete",
+            "result_counts": (
+                "{converted} converted; {skipped} skipped; {failed} failed."
+            ),
+            "result_single_size": "{input} → {output}: {input_size} → {svg_size}",
+            "result_batch_size": "{input_size} input → {svg_size} SVG",
+            "result_embedded_size": "Embedded raster: {size}",
+            "result_output_custom": "Output: {path}",
+            "result_output_same_as_source": "Output: beside each source image",
+            "result_no_output": "No output files were created.",
+            "result_failures": "Failed files:\n{details}",
+        }
+    }
+    app._last_conversion_options = GuiConversionOptions(
+        mode="embed",
+        output_dir=str(tmp_path),
+        overwrite=False,
+        recursive=False,
+        embed_options=None,
+        vectorize_options=None,
+    )
+    app.result_title_var = FakeVar("")
+    app.result_summary_var = FakeVar("")
+    app.result_metrics_var = FakeVar("")
+    app.result_output_var = FakeVar("")
+    app.result_details_var = FakeVar("")
+    app.result_frame = Mock()
+    app.open_output_button = Mock()
+    app.language_menu = object()
+
+    app._render_result_feedback(result)
+
+    assert app.result_title_var.get() == "Conversion complete"
+    assert app.result_summary_var.get() == "1 converted; 0 skipped; 0 failed."
+    assert app.result_output_var.get() == f"Output: {tmp_path}"
+    assert "photo.jpg" in app.result_metrics_var.get()
+    app.open_output_button.configure.assert_called_once_with(state=gui_module.tk.NORMAL)
+    app.result_frame.pack.assert_called_once_with(
+        fill=gui_module.tk.X, pady=(12, 0), before=app.language_menu
+    )
+
+
+def test_reset_for_new_conversion_returns_to_ready_state() -> None:
+    app = object.__new__(SVGConverterApp)
+    app._running = False
+    app._selected_input_paths = ("photo.png",)
+    app._selected_input_kind = "files"
+    app._last_result = Mock()
+    app._last_conversion_options = Mock()
+    app._result_output_folder = Path("/tmp/svg-output")
+    app.result_frame = Mock()
+    app.progress = Mock()
+    app.input_summary_var = FakeVar("Selected file: photo.png")
+    app.status_var = FakeVar("Conversion complete")
+    app.locale = "en_US"
+    app.translations = {
+        "en_US": {
+            "no_input_selected": "No files or folder selected.",
+            "ready": "Select files or a folder to start converting.",
+        }
+    }
+    app._update_action_state = Mock()
+
+    reset_for_new_conversion = getattr(app, "reset_for_new_conversion", None)
+
+    assert callable(reset_for_new_conversion)
+    reset_for_new_conversion()
+
+    assert app._selected_input_paths == ()
+    assert app._selected_input_kind is None
+    assert app._last_result is None
+    assert app._last_conversion_options is None
+    assert app._result_output_folder is None
+    assert app.input_summary_var.get() == "No files or folder selected."
+    assert app.status_var.get() == "Select files or a folder to start converting."
+    app.result_frame.pack_forget.assert_called_once_with()
+    app.progress.configure.assert_called_once_with(value=0, maximum=1)
 
 
 def test_select_files_records_selection_without_starting_conversion(
