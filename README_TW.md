@@ -46,7 +46,8 @@ SVGConverter 可將 PNG、JPEG、WebP、BMP、TIFF 影像轉為 SVG，並提供 
 ## 轉換模式
 
 - **`embed`**（預設）把原始點陣資料放進 SVG 的 `<image>` 元素，能保留來源像素；但它不是
-  向量化，且 Base64 編碼可能讓輸出大於原圖。
+  向量化，且 Base64 編碼可能讓輸出大於原圖。TIFF 是例外：多數瀏覽器無法顯示 TIFF，因此會將
+  第一頁以無損 PNG 嵌入。
 - **`vectorize`** 使用選用的 [VTracer](https://github.com/visioncortex/vtracer) 後端，把
   點陣區域描繪為 SVG 路徑。它適合 logo、icon、插圖與高對比線稿；照片可能產生較大且風格化、
   不一定忠於原圖的結果。
