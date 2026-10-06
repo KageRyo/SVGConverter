@@ -8,6 +8,7 @@ import pytest
 from PIL import Image
 
 import svgconverter.converter as converter_module
+import svgconverter.embed as embed_module
 import svgconverter.vectorize as vectorize_module
 from svgconverter import (
     BatchResult,
@@ -409,6 +410,52 @@ def test_directory_conversion_reports_successes_and_failures(tmp_path: Path) -> 
     }
     assert result.failed[0].input_path.name == "bad.jpg"
     assert (output_directory / "one.svg").is_file()
+
+
+def test_oversized_image_raises_conversion_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 10)
+    source = create_image(tmp_path / "huge.png", "PNG", (6, 6))
+
+    with pytest.raises(ConversionError, match="exceeds the safe pixel limit"):
+        convert_file(source)
+
+    assert not (tmp_path / "huge.svg").exists()
+
+
+def test_oversized_image_is_reported_without_stopping_the_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 10)
+    source_directory = tmp_path / "images"
+    create_image(source_directory / "a-huge.png", "PNG", (6, 6))
+    create_image(source_directory / "b-small.png", "PNG", (2, 2))
+
+    result = convert_directory(source_directory)
+
+    assert [path.name for path in result.converted] == ["b-small.svg"]
+    assert [failure.input_path.name for failure in result.failed] == ["a-huge.png"]
+    assert isinstance(result.failed[0].error, ConversionError)
+
+
+def test_oversized_image_cannot_bypass_the_limit_when_optimizing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = create_image(tmp_path / "huge.png", "PNG", (6, 6))
+    real_read_metadata = embed_module._read_image_metadata
+
+    def read_metadata_then_lower_limit(path: Path) -> tuple[int, int, str]:
+        metadata = real_read_metadata(path)
+        monkeypatch.setattr(Image, "MAX_IMAGE_PIXELS", 10)
+        return metadata
+
+    monkeypatch.setattr(
+        embed_module, "_read_image_metadata", read_metadata_then_lower_limit
+    )
+
+    with pytest.raises(ConversionError, match="exceeds the safe pixel limit"):
+        convert_file(source, embed_options=EmbedOptions(max_width=3))
 
 
 def test_recursive_directory_conversion_preserves_relative_output_paths(
