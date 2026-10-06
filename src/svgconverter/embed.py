@@ -38,6 +38,14 @@ def validate_input(input_path: Path) -> None:
         )
 
 
+def _oversized_image_error(
+    input_path: Path, error: Image.DecompressionBombError
+) -> ConversionError:
+    return ConversionError(
+        f"Image {input_path} exceeds the safe pixel limit and was not decoded: {error}"
+    )
+
+
 def _read_image_metadata(input_path: Path) -> tuple[int, int, str]:
     try:
         with Image.open(input_path) as image:
@@ -52,6 +60,8 @@ def _read_image_metadata(input_path: Path) -> tuple[int, int, str]:
             return image.width, image.height, mime_type
     except UnsupportedImageError:
         raise
+    except Image.DecompressionBombError as error:
+        raise _oversized_image_error(input_path, error) from error
     except OSError as error:
         raise ConversionError(f"Cannot read image {input_path}: {error}") from error
 
@@ -153,6 +163,8 @@ def _embedded_raster(
             return data.getvalue(), image.width, image.height, mime_type
     except UnsupportedImageError:
         raise
+    except Image.DecompressionBombError as error:
+        raise _oversized_image_error(source, error) from error
     except (OSError, ValueError) as error:
         raise ConversionError(f"Cannot optimize image {source}: {error}") from error
 
