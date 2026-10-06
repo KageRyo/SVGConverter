@@ -23,6 +23,11 @@ _MIME_TYPES = {
 }
 # EXIF orientations that rotate by 90 degrees, so displays swap width and height.
 _TRANSPOSED_ORIENTATIONS = frozenset({5, 6, 7, 8})
+# Browsers cannot display these formats inside an SVG <image>, so they are
+# losslessly transcoded to PNG before embedding.
+_PNG_TRANSCODED_FORMATS = frozenset({"TIFF"})
+_PNG_MODES = frozenset({"1", "L", "LA", "I", "I;16", "P", "RGB", "RGBA"})
+_ALPHA_MODES = frozenset({"La", "PA", "RGBa"})
 
 
 def validate_input(input_path: Path) -> None:
@@ -126,15 +131,34 @@ def _image_save_kwargs(
     return save_kwargs
 
 
+def _png_compatible(image: Image.Image) -> Image.Image:
+    """Return ``image`` in a pixel mode that PNG can store without loss."""
+
+    if image.mode in _PNG_MODES:
+        return image
+    if image.mode.startswith("I;16"):
+        return image.convert("I;16")
+    converted = image.convert("RGBA" if image.mode in _ALPHA_MODES else "RGB")
+    # A profile for the original colour space (for example CMYK) does not
+    # describe the converted pixels.
+    converted.info.pop("icc_profile", None)
+    return converted
+
+
 def _embedded_raster(
     source: Path, embed_options: EmbedOptions | None
 ) -> tuple[bytes, int, int, str]:
-    """Return source bytes or explicitly requested optimized raster bytes."""
+    """Return source bytes, or re-encoded bytes when requested or required.
+
+    Formats that browsers cannot display are always re-encoded as PNG.
+    """
 
     width, height, mime_type = _read_image_metadata(source)
     source_data = source.read_bytes()
-    if embed_options is None or not embed_options.is_enabled:
+    must_transcode = mime_type == _MIME_TYPES["TIFF"]
+    if not must_transcode and (embed_options is None or not embed_options.is_enabled):
         return source_data, width, height, mime_type
+    embed_options = embed_options or EmbedOptions()
 
     try:
         with Image.open(source) as image:
@@ -143,15 +167,19 @@ def _embedded_raster(
                 raise UnsupportedImageError(
                     f"Unsupported image format in {source}: unknown"
                 )
+            output_format = (
+                "PNG" if image_format in _PNG_TRANSCODED_FORMATS else image_format
+            )
             target_width, target_height = _target_dimensions(
                 width, height, embed_options
             )
             should_resize = (target_width, target_height) != (width, height)
             should_reencode = (
                 should_resize
+                or output_format != image_format
                 or (image_format == "JPEG" and embed_options.jpeg_quality is not None)
                 or (
-                    image_format == "PNG"
+                    output_format == "PNG"
                     and (
                         embed_options.png_compress_level is not None
                         or embed_options.optimize_png
@@ -165,6 +193,8 @@ def _embedded_raster(
             # Bake EXIF orientation into the pixels so resizing uses the displayed
             # axes and the re-encoded raster cannot be rotated a second time.
             image = ImageOps.exif_transpose(image)
+            if output_format == "PNG":
+                image = _png_compatible(image)
             if should_resize:
                 image = image.resize(
                     (target_width, target_height), Image.Resampling.LANCZOS
@@ -172,16 +202,21 @@ def _embedded_raster(
             data = BytesIO()
             image.save(
                 data,
-                format=image_format,
-                **_image_save_kwargs(image, image_format, embed_options),
+                format=output_format,
+                **_image_save_kwargs(image, output_format, embed_options),
             )
-            return data.getvalue(), image.width, image.height, mime_type
+            return (
+                data.getvalue(),
+                image.width,
+                image.height,
+                _MIME_TYPES[output_format],
+            )
     except UnsupportedImageError:
         raise
     except Image.DecompressionBombError as error:
         raise _oversized_image_error(source, error) from error
     except (OSError, ValueError) as error:
-        raise ConversionError(f"Cannot optimize image {source}: {error}") from error
+        raise ConversionError(f"Cannot re-encode image {source}: {error}") from error
 
 
 def embed_image(

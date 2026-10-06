@@ -47,7 +47,9 @@ Raster image
 
 - **`embed`** (default) places the original raster bytes in an SVG `<image>`
   element. It preserves the source pixels, but it is not vectorization and can
-  be larger than the original image because of Base64 encoding.
+  be larger than the original image because of Base64 encoding. TIFF is the
+  exception: most browsers cannot display it, so its first page is embedded as
+  a lossless PNG instead.
 - **`vectorize`** traces raster regions into SVG paths using the optional
   [VTracer](https://github.com/visioncortex/vtracer) backend. It is most useful
   for logos, icons, illustrations, and high-contrast line art. Photographs can

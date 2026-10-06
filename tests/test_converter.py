@@ -228,8 +228,8 @@ def test_convert_jpeg_uses_jpeg_mime_type(tmp_path: Path, suffix: str) -> None:
     [
         (".webp", "WEBP", "image/webp"),
         (".bmp", "BMP", "image/bmp"),
-        (".tif", "TIFF", "image/tiff"),
-        (".tiff", "TIFF", "image/tiff"),
+        (".tif", "TIFF", "image/png"),
+        (".tiff", "TIFF", "image/png"),
     ],
 )
 def test_additional_raster_formats_use_correct_mime_type(
@@ -240,6 +240,83 @@ def test_additional_raster_formats_use_correct_mime_type(
     output = convert_file(source)
 
     assert f"data:{mime_type};base64," in output.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("mode", "color", "expected_mode"),
+    [
+        ("RGB", (25, 50, 75), "RGB"),
+        ("RGBA", (25, 50, 75, 128), "RGBA"),
+        ("L", 90, "L"),
+        ("I;16", 40000, "I;16"),
+        ("CMYK", (0, 128, 255, 0), "RGB"),
+        ("LAB", (50, 128, 128), "RGB"),
+        ("PA", (0, 128), "RGBA"),
+    ],
+)
+def test_tiff_is_embedded_as_lossless_png(
+    tmp_path: Path, mode: str, color: object, expected_mode: str
+) -> None:
+    source = tmp_path / "scan.tiff"
+    Image.new(mode, (6, 4), color).save(source, format="TIFF")
+
+    metric = convert_file_with_metrics(source)
+
+    document = metric.output_path.read_text(encoding="utf-8")
+    assert "data:image/png;base64," in document
+    assert 'width="6" height="4"' in document
+    embedded = embedded_raster_bytes(metric.output_path)
+    assert metric.embedded_raster_bytes == len(embedded)
+    with Image.open(source) as original, Image.open(BytesIO(embedded)) as png:
+        assert png.format == "PNG"
+        assert png.mode == expected_mode
+        expected = (
+            original
+            if original.mode == expected_mode
+            else original.convert(expected_mode)
+        )
+        assert png.tobytes() == expected.tobytes()
+
+
+def test_tiff_colour_conversion_drops_the_source_colour_profile(
+    tmp_path: Path,
+) -> None:
+    source = tmp_path / "print.tiff"
+    Image.new("CMYK", (4, 4)).save(source, format="TIFF", icc_profile=b"cmyk-icc")
+    with Image.open(source) as original:
+        assert original.info.get("icc_profile") == b"cmyk-icc"
+
+    output = convert_file(source)
+
+    with Image.open(BytesIO(embedded_raster_bytes(output))) as png:
+        assert png.mode == "RGB"
+        assert "icc_profile" not in png.info
+
+
+def test_multipage_tiff_embeds_the_first_page(tmp_path: Path) -> None:
+    source = tmp_path / "pages.tiff"
+    first = Image.new("RGB", (4, 4), (255, 0, 0))
+    second = Image.new("RGB", (8, 8), (0, 0, 255))
+    first.save(source, format="TIFF", save_all=True, append_images=[second])
+
+    output = convert_file(source)
+
+    assert 'width="4" height="4"' in output.read_text(encoding="utf-8")
+    with Image.open(BytesIO(embedded_raster_bytes(output))) as png:
+        assert png.format == "PNG"
+        assert png.size == (4, 4)
+        assert png.getpixel((0, 0)) == (255, 0, 0)
+
+
+def test_tiff_embed_options_resize_into_png(tmp_path: Path) -> None:
+    source = create_image(tmp_path / "scan.tif", "TIFF", (40, 20))
+
+    output = convert_file(source, embed_options=EmbedOptions(max_width=10))
+
+    assert 'width="10" height="5"' in output.read_text(encoding="utf-8")
+    with Image.open(BytesIO(embedded_raster_bytes(output))) as png:
+        assert png.format == "PNG"
+        assert png.size == (10, 5)
 
 
 def test_mime_type_is_detected_from_image_content(tmp_path: Path) -> None:

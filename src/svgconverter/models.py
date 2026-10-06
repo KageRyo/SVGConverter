@@ -19,10 +19,12 @@ VectorizeCurveMode = Literal["pixel", "polygon", "spline"]
 class EmbedOptions:
     """Opt-in preprocessing options for raster bytes embedded in an SVG.
 
-    Images are left byte-for-byte unchanged when all options use their defaults.
-    ``max_width`` and ``max_height`` only downscale and always preserve the
-    aspect ratio. JPEG and PNG options apply only to their respective formats,
-    which makes a single batch configuration safe for mixed input files.
+    Images are left byte-for-byte unchanged when all options use their defaults,
+    except TIFF, which browsers cannot display and is always embedded as a
+    lossless PNG. ``max_width`` and ``max_height`` only downscale and always
+    preserve the aspect ratio. JPEG and PNG options apply only to their
+    respective output formats, which makes a single batch configuration safe
+    for mixed input files.
     """
 
     max_width: int | None = None

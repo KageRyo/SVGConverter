@@ -160,9 +160,10 @@ def convert_file_with_metrics(
     Existing outputs are preserved unless ``overwrite=True`` is provided.
 
     ``mode="embed"`` stores the original raster bytes in an SVG ``<image>``
-    element unless enabled ``embed_options`` request preprocessing. ``mode="vectorize"``
-    traces the image into vector paths and requires the ``vectorize`` optional
-    dependency.
+    element unless enabled ``embed_options`` request preprocessing. TIFF inputs
+    are embedded as lossless PNG because browsers cannot display TIFF.
+    ``mode="vectorize"`` traces the image into vector paths and requires the
+    ``vectorize`` optional dependency.
 
     When ``allowed_root`` is provided, resolved input and output paths must stay
     inside that directory; this is useful when paths come from an untrusted
