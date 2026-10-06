@@ -7,6 +7,24 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.8.1 - 2026-10-07
+
+### Changed
+
+- Embed mode now stores TIFF inputs as lossless PNG, using the first page of
+  multi-page files, instead of embedding the original TIFF bytes. PNG embed
+  options also apply to TIFF inputs.
+
+### Fixed
+
+- Images above Pillow's decompression-bomb pixel limit are now reported as
+  per-file conversion failures instead of aborting the whole batch.
+- Embedded SVG dimensions now honour EXIF orientation, so rotated photos are no
+  longer shrunk and letterboxed; re-encoded rasters apply the orientation
+  before resizing.
+- TIFF conversions now display in browsers that cannot render `image/tiff`,
+  such as Chrome and Firefox.
+
 ## 1.8.0 - 2026-09-17
 
 ### Added
