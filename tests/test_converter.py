@@ -5,7 +5,7 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
-from PIL import Image
+from PIL import ExifTags, Image
 
 import svgconverter.converter as converter_module
 import svgconverter.embed as embed_module
@@ -169,6 +169,49 @@ def test_embed_png_compression_reencodes_pixels_without_changing_dimensions(
         assert compressed.format == "PNG"
         assert compressed.size == original.size
         assert compressed.tobytes() == original.tobytes()
+
+
+def create_rotated_jpeg(path: Path, orientation: int) -> Path:
+    """Store a 40x20 JPEG whose EXIF orientation displays it differently."""
+
+    exif = Image.Exif()
+    exif[ExifTags.Base.Orientation] = orientation
+    return create_image(path, "JPEG", (40, 20), exif=exif.tobytes())
+
+
+@pytest.mark.parametrize(
+    ("orientation", "expected_size"),
+    [(1, (40, 20)), (3, (40, 20)), (5, (20, 40)), (6, (20, 40)), (8, (20, 40))],
+)
+def test_embed_uses_exif_oriented_display_dimensions(
+    tmp_path: Path, orientation: int, expected_size: tuple[int, int]
+) -> None:
+    source = create_rotated_jpeg(tmp_path / "photo.jpg", orientation)
+
+    output = convert_file(source)
+
+    width, height = expected_size
+    document = output.read_text(encoding="utf-8")
+    assert f'width="{width}" height="{height}" viewBox="0 0 {width} {height}"' in (
+        document
+    )
+    assert '<image href="data:image/jpeg;base64,' in document
+    assert f'width="{width}" height="{height}"/>' in document
+    assert embedded_raster_bytes(output) == source.read_bytes()
+
+
+def test_embed_reencoding_applies_exif_orientation_before_resizing(
+    tmp_path: Path,
+) -> None:
+    source = create_rotated_jpeg(tmp_path / "photo.jpg", 6)
+
+    metric = convert_file_with_metrics(source, embed_options=EmbedOptions(max_width=10))
+
+    document = metric.output_path.read_text(encoding="utf-8")
+    assert 'width="10" height="20"' in document
+    with Image.open(BytesIO(embedded_raster_bytes(metric.output_path))) as image:
+        assert image.size == (10, 20)
+        assert image.getexif().get(ExifTags.Base.Orientation, 1) == 1
 
 
 @pytest.mark.parametrize("suffix", [".jpg", ".jpeg", ".JPG"])
