@@ -6,7 +6,7 @@ import base64
 from io import BytesIO
 from pathlib import Path
 
-from PIL import Image
+from PIL import ExifTags, Image, ImageOps
 
 from .errors import ConversionError, InputPathError, UnsupportedImageError
 from .models import EmbedOptions
@@ -21,6 +21,8 @@ _MIME_TYPES = {
     "BMP": "image/bmp",
     "TIFF": "image/tiff",
 }
+# EXIF orientations that rotate by 90 degrees, so displays swap width and height.
+_TRANSPOSED_ORIENTATIONS = frozenset({5, 6, 7, 8})
 
 
 def validate_input(input_path: Path) -> None:
@@ -46,6 +48,15 @@ def _oversized_image_error(
     )
 
 
+def _display_size(image: Image.Image) -> tuple[int, int]:
+    """Return the size viewers display after applying EXIF orientation."""
+
+    orientation = image.getexif().get(ExifTags.Base.Orientation, 1)
+    if orientation in _TRANSPOSED_ORIENTATIONS:
+        return image.height, image.width
+    return image.width, image.height
+
+
 def _read_image_metadata(input_path: Path) -> tuple[int, int, str]:
     try:
         with Image.open(input_path) as image:
@@ -57,7 +68,8 @@ def _read_image_metadata(input_path: Path) -> tuple[int, int, str]:
                     f"Unsupported image format in {input_path}: "
                     f"{image.format or 'unknown'}"
                 )
-            return image.width, image.height, mime_type
+            width, height = _display_size(image)
+            return width, height, mime_type
     except UnsupportedImageError:
         raise
     except Image.DecompressionBombError as error:
@@ -132,9 +144,9 @@ def _embedded_raster(
                     f"Unsupported image format in {source}: unknown"
                 )
             target_width, target_height = _target_dimensions(
-                image.width, image.height, embed_options
+                width, height, embed_options
             )
-            should_resize = (target_width, target_height) != image.size
+            should_resize = (target_width, target_height) != (width, height)
             should_reencode = (
                 should_resize
                 or (image_format == "JPEG" and embed_options.jpeg_quality is not None)
@@ -150,6 +162,9 @@ def _embedded_raster(
                 return source_data, width, height, mime_type
 
             image.load()
+            # Bake EXIF orientation into the pixels so resizing uses the displayed
+            # axes and the re-encoded raster cannot be rotated a second time.
+            image = ImageOps.exif_transpose(image)
             if should_resize:
                 image = image.resize(
                     (target_width, target_height), Image.Resampling.LANCZOS
