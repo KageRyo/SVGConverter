@@ -208,8 +208,18 @@ def convert_file_with_metrics(
             )
         if destination.exists() and destination.is_dir():
             raise InputPathError(f"Output path is a directory: {destination}")
-        os.replace(staged_output, destination)
-        temporary_output = None
+        if overwrite:
+            os.replace(staged_output, destination)
+            temporary_output = None
+        else:
+            # Publish the complete staged file without replacing another writer.
+            try:
+                os.link(staged_output, destination)
+            except FileExistsError as error:
+                raise OutputExistsError(
+                    f"Output appeared during conversion: {destination}. "
+                    "Pass overwrite=True to replace it."
+                ) from error
         return ConversionMetrics(
             input_path=source,
             output_path=destination,

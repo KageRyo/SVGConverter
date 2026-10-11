@@ -183,6 +183,13 @@ Use `progress_callback` for each processed item; return `True` from
 `should_cancel` to stop cleanly before the next item. The result then has
 `cancelled=True`.
 
+Without `overwrite=True`, a completed SVG is published with an atomic hard link
+so concurrent converters cannot replace each other's output. A collision raises
+`OutputExistsError` and is recorded as a per-file batch failure. Filesystems must
+support hard links; unsupported filesystems fail without publishing a partial
+SVG. Network-share atomicity depends on the server's hard-link implementation
+and has not been verified. With `overwrite=True`, atomic replacement is retained.
+
 For integrations that accept untrusted path values, pass `allowed_root` to
 `convert_file()`, `convert_file_with_metrics()`, `convert_directory()`,
 `convert_paths()`, or `SVGConverter`. The converter resolves paths and rejects

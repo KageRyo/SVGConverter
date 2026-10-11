@@ -7,6 +7,11 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+### Fixed
+
+- Concurrent conversions no longer replace each other's SVG when overwrite is
+  disabled. Filesystems without hard-link support report a conversion error.
+
 ## 1.8.1 - 2026-10-07
 
 ### Changed
