@@ -84,6 +84,17 @@ svgconverter photo.jpg --output output.svg
 svgconverter logo.png --mode vectorize --vectorize-color-mode binary
 ```
 
+若要在其他資料夾保留來源檔名：
+
+```bash
+svgconverter photo.jpg --output-dir ./svg-output
+```
+
+此指令建立 `svg-output/photo.svg`，並使用與批次轉換相同的摘要與覆寫規則。
+既有輸出會略過並回傳結束代碼 0；指定 `--overwrite` 才會覆寫。
+轉換失敗會回傳結束代碼 1。`--output` 用於指定單一輸入檔的輸出檔名，
+不能與 `--output-dir` 同時使用。
+
 轉換資料夾最外層的所有支援影像：
 
 ```bash

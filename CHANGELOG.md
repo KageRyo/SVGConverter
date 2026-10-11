@@ -12,6 +12,10 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 - Concurrent conversions no longer replace each other's SVG when overwrite is
   disabled. Filesystems without hard-link support report a conversion error.
 
+
+- The CLI accepts `--output-dir` for a single image file, with the same
+  skip, overwrite, and failure reporting as batch conversion.
+
 ## 1.8.1 - 2026-10-07
 
 ### Changed
