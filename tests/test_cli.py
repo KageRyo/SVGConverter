@@ -48,7 +48,10 @@ def test_cli_reports_safe_publication_error_and_explicit_overwrite_succeeds(
     message = capsys.readouterr().err
     assert error.value.code == 1
     assert "hard links are unsupported" in message
-    assert "Choose an output directory with hard-link support" in message
+    assert (
+        "Choose an output directory with hard-link or exclusive-rename support"
+        in message
+    )
     assert "--overwrite only if replacing existing output is acceptable" in message
     assert not destination.exists()
     assert not list(tmp_path.glob(".result-*.svg.tmp"))

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import errno
 import multiprocessing
 import os
 from multiprocessing.connection import Connection
@@ -15,7 +16,11 @@ from svgconverter import ConversionError, OutputExistsError, convert_file, conve
 
 
 def _convert_in_process(
-    source: Path, destination: Path, barrier: Barrier, result: Connection
+    source: Path,
+    destination: Path,
+    barrier: Barrier,
+    result: Connection,
+    hard_links_supported: bool,
 ) -> None:
     """Hold both writers after their existence checks, before publishing."""
     real_link = os.link
@@ -23,6 +28,8 @@ def _convert_in_process(
 
     def synchronized_link(source_path: Path, destination_path: Path) -> None:
         barrier.wait(timeout=15)
+        if not hard_links_supported:
+            raise OSError(errno.ENOTSUP, "hard links are unsupported")
         real_link(source_path, destination_path)
 
     def synchronized_replace(source_path: Path, destination_path: Path) -> None:
@@ -43,7 +50,10 @@ def _convert_in_process(
         result.close()
 
 
-def test_concurrent_processes_preserve_the_winning_output(tmp_path: Path) -> None:
+@pytest.mark.parametrize("hard_links_supported", [True, False])
+def test_concurrent_processes_preserve_the_winning_output(
+    tmp_path: Path, hard_links_supported: bool
+) -> None:
     sources = [tmp_path / "first.png", tmp_path / "second.png"]
     for source, color in zip(sources, ["red", "blue"], strict=True):
         Image.new("RGB", (3, 2), color).save(source)
@@ -53,7 +63,8 @@ def test_concurrent_processes_preserve_the_winning_output(tmp_path: Path) -> Non
     pipes = [context.Pipe(duplex=False) for _ in sources]
     processes = [
         context.Process(
-            target=_convert_in_process, args=(source, destination, barrier, sender)
+            target=_convert_in_process,
+            args=(source, destination, barrier, sender, hard_links_supported),
         )
         for source, (_, sender) in zip(sources, pipes, strict=True)
     ]
@@ -87,8 +98,30 @@ def test_concurrent_processes_preserve_the_winning_output(tmp_path: Path) -> Non
     assert not list(tmp_path.glob(".result-*.svg.tmp"))
 
 
-def test_commit_collision_preserves_output_and_continues_batch(
+def test_sequential_batch_without_hard_links(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sources = [tmp_path / "first.png", tmp_path / "second.png"]
+    for source in sources:
+        Image.new("RGB", (3, 2)).save(source)
+    output_dir = tmp_path / "output"
+
+    def unsupported_link(_source: Path, _destination: Path) -> None:
+        raise OSError(errno.ENOTSUP, "hard links are unsupported")
+
+    monkeypatch.setattr(converter_module.os, "link", unsupported_link)
+    result = convert_paths(sources, output_dir)
+
+    assert result.success_count == 2
+    assert result.failure_count == 0
+    for destination in result.converted:
+        assert destination.read_text(encoding="utf-8").endswith("</svg>\n")
+    assert not list(output_dir.glob("*.tmp"))
+
+
+@pytest.mark.parametrize("hard_links_supported", [True, False])
+def test_commit_collision_preserves_output_and_continues_batch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, hard_links_supported: bool
 ) -> None:
     sources = [tmp_path / "first.png", tmp_path / "second.png"]
     for source in sources:
@@ -99,6 +132,8 @@ def test_commit_collision_preserves_output_and_continues_batch(
     def competing_link(staged: Path, destination: Path) -> None:
         if destination.name == "first.svg":
             destination.write_text("competing output", encoding="utf-8")
+        if not hard_links_supported:
+            raise OSError(errno.ENOTSUP, "hard links are unsupported")
         real_link(staged, destination)
 
     monkeypatch.setattr(converter_module.os, "link", competing_link)
