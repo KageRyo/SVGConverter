@@ -28,6 +28,135 @@ def test_cli_converts_single_file_to_explicit_output(
     assert "Converted:" in capsys.readouterr().out
 
 
+@pytest.mark.parametrize("overwrite", [False, True])
+def test_cli_single_file_output_directory_handles_existing_outputs(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], overwrite: bool
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    output_directory = tmp_path / "out"
+    output_directory.mkdir()
+    destination = output_directory / "sample.svg"
+    destination.write_text("existing", encoding="utf-8")
+    arguments = [str(source), "--output-dir", str(output_directory)]
+    if overwrite:
+        arguments.append("--overwrite")
+
+    assert main(arguments) == 0
+
+    captured = capsys.readouterr()
+    if overwrite:
+        assert "<svg" in destination.read_text(encoding="utf-8")
+        assert "Summary: 1 converted, 0 skipped, 0 failed" in captured.out
+    else:
+        assert destination.read_text(encoding="utf-8") == "existing"
+        assert "Summary: 0 converted, 1 skipped, 0 failed" in captured.out
+
+
+def test_cli_converts_single_file_to_output_directory(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG", (120, 60))
+    output_directory = tmp_path / "out"
+
+    assert (
+        main([str(source), "--output-dir", str(output_directory), "--max-width", "30"])
+        == 0
+    )
+
+    captured = capsys.readouterr()
+    destination = output_directory / "sample.svg"
+    assert 'width="30" height="15"' in destination.read_text(encoding="utf-8")
+    assert not source.with_suffix(".svg").exists()
+    assert "Summary: 1 converted, 0 skipped, 0 failed" in captured.out
+    assert "Size summary:" in captured.out
+
+
+def test_cli_single_file_output_directory_reports_conversion_failure(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "bad.png"
+    source.write_bytes(b"not an image")
+    output_directory = tmp_path / "out"
+
+    assert main([str(source), "--output-dir", str(output_directory)]) == 1
+
+    assert not (output_directory / "bad.svg").exists()
+    assert "Summary: 0 converted, 0 skipped, 1 failed" in capsys.readouterr().out
+
+
+def test_cli_rejects_both_output_options(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    with pytest.raises(SystemExit) as exit_status:
+        main(
+            [
+                str(source),
+                "--output",
+                str(tmp_path / "out.svg"),
+                "--output-dir",
+                str(tmp_path / "out"),
+            ]
+        )
+    assert exit_status.value.code == 2
+    assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_cli_single_file_output_directory_respects_allowed_root(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    allowed_root = tmp_path / "workspace"
+    source = create_image(allowed_root / "sample.png", "PNG")
+    output_directory = tmp_path / "outside"
+    with pytest.raises(SystemExit) as exit_status:
+        main(
+            [
+                str(source),
+                "--output-dir",
+                str(output_directory),
+                "--allowed-root",
+                str(allowed_root),
+            ]
+        )
+    assert exit_status.value.code == 1
+    assert "within allowed root" in capsys.readouterr().err
+    assert not output_directory.exists()
+
+
+@pytest.mark.parametrize("directory_input", [False, True])
+def test_cli_reserves_explicit_output_for_one_file(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], directory_input: bool
+) -> None:
+    source = create_image(tmp_path / "images" / "first.png", "PNG")
+    if directory_input:
+        inputs = [str(source.parent)]
+    else:
+        second = create_image(tmp_path / "second.png", "PNG")
+        inputs = [str(source), str(second)]
+
+    with pytest.raises(SystemExit) as exit_status:
+        main([*inputs, "--output", str(tmp_path / "out.svg")])
+
+    assert exit_status.value.code == 2
+    assert "single input file" in capsys.readouterr().err
+    assert not (tmp_path / "out.svg").exists()
+
+
+def test_cli_single_file_output_directory_rejects_a_file_destination(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "out"
+    destination.write_text("existing", encoding="utf-8")
+
+    with pytest.raises(SystemExit) as exit_status:
+        main([str(source), "--output-dir", str(destination)])
+
+    assert exit_status.value.code == 1
+    assert "not a directory" in capsys.readouterr().err
+    assert destination.read_text(encoding="utf-8") == "existing"
+
+
 def test_cli_allowed_root_rejects_input_outside_boundary(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
