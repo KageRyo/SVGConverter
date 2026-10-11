@@ -220,6 +220,13 @@ def convert_file_with_metrics(
                     f"Output appeared during conversion: {destination}. "
                     "Pass overwrite=True to replace it."
                 ) from error
+            except OSError as error:
+                raise ConversionError(
+                    f"Cannot safely publish SVG {destination}: {error}. "
+                    "Choose an output directory with hard-link support and "
+                    "write permission, or enable overwrite=True / --overwrite "
+                    "only if replacing existing output is acceptable."
+                ) from error
         return ConversionMetrics(
             input_path=source,
             output_path=destination,

@@ -123,8 +123,11 @@ def test_unsupported_hard_links_fail_without_partial_output(
         raise OSError("hard links are unsupported")
 
     monkeypatch.setattr(converter_module.os, "link", unsupported_link)
-    with pytest.raises(ConversionError, match="hard links are unsupported"):
+    with pytest.raises(ConversionError, match="hard links are unsupported") as error:
         convert_file(source, destination)
+
+    assert "Choose an output directory" in str(error.value)
+    assert "--overwrite" in str(error.value)
 
     assert not destination.exists()
     assert not list(tmp_path.glob(".result-*.svg.tmp"))
