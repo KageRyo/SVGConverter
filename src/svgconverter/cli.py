@@ -46,7 +46,7 @@ def build_parser() -> argparse.ArgumentParser:
     output_group.add_argument(
         "--output-dir",
         type=Path,
-        help="Output directory for directory or multi-file inputs",
+        help="Output directory for one or more files or directories",
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Replace existing output SVG files"
@@ -236,9 +236,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     except ValueError as error:
         parser.error(str(error))
     try:
-        if len(arguments.inputs) == 1 and arguments.inputs[0].is_file():
-            if arguments.output_dir is not None:
-                parser.error("--output-dir can only be used with a directory input")
+        if (
+            len(arguments.inputs) == 1
+            and arguments.inputs[0].is_file()
+            and arguments.output_dir is None
+        ):
             metric = convert_file_with_metrics(
                 arguments.inputs[0],
                 arguments.output,
@@ -255,7 +257,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if arguments.output is not None:
             parser.error("--output can only be used with a single input file")
 
-        if len(arguments.inputs) == 1:
+        if len(arguments.inputs) == 1 and not arguments.inputs[0].is_file():
             result = convert_directory(
                 arguments.inputs[0],
                 arguments.output_dir,

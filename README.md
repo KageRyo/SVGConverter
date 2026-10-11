@@ -87,6 +87,18 @@ svgconverter photo.jpg --output output.svg
 svgconverter logo.png --mode vectorize --vectorize-color-mode binary
 ```
 
+To keep the source filename in a different directory:
+
+```bash
+svgconverter photo.jpg --output-dir ./svg-output
+```
+
+This creates `svg-output/photo.svg` and uses the same summary and overwrite
+rules as batch conversion. An existing output is skipped with exit code 0;
+`--overwrite` replaces it. A conversion failure returns exit code 1. `--output`
+selects an explicit filename for one input file and cannot be combined with
+`--output-dir`.
+
 Convert all supported images immediately inside a directory:
 
 ```bash
