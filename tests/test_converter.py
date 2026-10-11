@@ -69,10 +69,14 @@ def test_convert_png_embeds_correct_mime_and_dimensions(tmp_path: Path) -> None:
     assert "data:image/png;base64," in document
 
 
+@pytest.mark.parametrize(
+    ("suffix", "image_format"),
+    [(".png", "PNG"), (".jpg", "JPEG"), (".webp", "WEBP"), (".bmp", "BMP")],
+)
 def test_default_embed_preserves_original_raster_bytes_and_reports_sizes(
-    tmp_path: Path,
+    tmp_path: Path, suffix: str, image_format: str
 ) -> None:
-    source = create_image(tmp_path / "sample.png", "PNG", (12, 8))
+    source = create_image(tmp_path / f"sample{suffix}", image_format, (12, 8))
 
     metric = convert_file_with_metrics(source)
 
@@ -99,10 +103,14 @@ def test_embed_downscales_with_preserved_aspect_ratio(tmp_path: Path) -> None:
     assert metric.embedded_raster_bytes < metric.input_bytes
 
 
+@pytest.mark.parametrize(
+    ("suffix", "image_format"),
+    [(".png", "PNG"), (".jpg", "JPEG"), (".webp", "WEBP"), (".bmp", "BMP")],
+)
 def test_embed_downscale_options_do_not_upscale_or_reencode_smaller_images(
-    tmp_path: Path,
+    tmp_path: Path, suffix: str, image_format: str
 ) -> None:
-    source = create_image(tmp_path / "small.png", "PNG", (12, 8))
+    source = create_image(tmp_path / f"small{suffix}", image_format, (12, 8))
 
     metric = convert_file_with_metrics(
         source, embed_options=EmbedOptions(max_width=100, max_height=100)
@@ -853,3 +861,90 @@ def test_vectorize_options_map_to_stable_backend_arguments() -> None:
         "layer_difference": 16,
         "path_precision": 3,
     }
+
+
+@pytest.mark.parametrize(
+    ("embed_options", "expected_size"),
+    [
+        pytest.param(None, (3, 2), id="default"),
+        pytest.param(EmbedOptions(max_width=2), (2, 1), id="resize"),
+        pytest.param(
+            EmbedOptions(png_compress_level=9, optimize_png=True),
+            (3, 2),
+            id="png-options",
+        ),
+    ],
+)
+def test_tiff_avoids_read_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    embed_options: EmbedOptions | None,
+    expected_size: tuple[int, int],
+) -> None:
+    source = create_image(tmp_path / "scan.tiff", "TIFF")
+    original_read_bytes = Path.read_bytes
+
+    def tiff_avoids_read_bytes(input_path: Path) -> bytes:
+        """Reject eager TIFF reads."""
+
+        if input_path == source:
+            raise AssertionError("Unexpected read_bytes() call for TIFF input")
+        return original_read_bytes(input_path)
+
+    monkeypatch.setattr(Path, "read_bytes", tiff_avoids_read_bytes)
+    metric = convert_file_with_metrics(source, embed_options=embed_options)
+
+    assert metric.input_bytes == source.stat().st_size
+
+    with Image.open(BytesIO(embedded_raster_bytes(metric.output_path))) as png:
+        assert png.format == "PNG"
+        assert png.size == expected_size
+
+
+def test_tiff_reencoding_applies_exif_orientation(tmp_path: Path) -> None:
+    source = tmp_path / "rotated.tiff"
+    image = Image.new("RGB", (6, 4), color=(25, 50, 75))
+    image.putpixel((0, 0), (255, 0, 0))
+    image.putpixel((5, 3), (0, 255, 0))
+    exif = Image.Exif()
+    exif[ExifTags.Base.Orientation] = 6
+    image.save(source, format="TIFF", exif=exif)
+
+    output = convert_file(source)
+
+    with Image.open(BytesIO(embedded_raster_bytes(output))) as png:
+        assert png.format == "PNG"
+        assert png.size == (4, 6)
+        assert png.getpixel((3, 0)) == (255, 0, 0)
+        assert png.getpixel((0, 5)) == (0, 255, 0)
+        assert ExifTags.Base.Orientation not in png.getexif()
+
+
+def test_tiff_transcoding_passes_png_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = create_image(tmp_path / "scan.tiff", "TIFF")
+    original_save = Image.Image.save
+    save_calls: list[dict[str, object]] = []
+
+    def observe_save(
+        image: Image.Image, destination: BytesIO, **save_kwargs: object
+    ) -> None:
+        """Record real image saves."""
+
+        save_calls.append(save_kwargs)
+        original_save(image, destination, **save_kwargs)
+
+    monkeypatch.setattr(Image.Image, "save", observe_save)
+    output = convert_file(
+        source, embed_options=EmbedOptions(png_compress_level=9, optimize_png=True)
+    )
+
+    assert len(save_calls) == 1
+    assert save_calls[0]["format"] == "PNG"
+    assert save_calls[0]["compress_level"] == 9
+    assert save_calls[0]["optimize"] is True
+    with Image.open(BytesIO(embedded_raster_bytes(output))) as png:
+        assert png.format == "PNG"
+        assert png.size == (3, 2)
+        assert png.getpixel((0, 0)) == (25, 50, 75)

@@ -154,10 +154,9 @@ def _embedded_raster(
     """
 
     width, height, mime_type = _read_image_metadata(source)
-    source_data = source.read_bytes()
     must_transcode = mime_type == _MIME_TYPES["TIFF"]
     if not must_transcode and (embed_options is None or not embed_options.is_enabled):
-        return source_data, width, height, mime_type
+        return source.read_bytes(), width, height, mime_type
     embed_options = embed_options or EmbedOptions()
 
     try:
@@ -187,7 +186,7 @@ def _embedded_raster(
                 )
             )
             if not should_reencode:
-                return source_data, width, height, mime_type
+                return source.read_bytes(), width, height, mime_type
 
             image.load()
             # Bake EXIF orientation into the pixels so resizing uses the displayed
