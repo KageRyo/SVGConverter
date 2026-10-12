@@ -36,6 +36,48 @@ jobs:
         run: >
           pytest --cov=svgconverter --cov-report=term-missing
           --cov-report=xml:coverage.xml
+      - name: Apply reviewed local path dispositions
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        run: |
+          python - <<'PYTHON'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          issue_keys = (
+              "AaEt3FGRhdzSzw-MMPzx", "AaEt3FGRhdzSzw-MMPzw",
+              "AaCZij63wC-YvzveLLyy", "AaCZij63wC-YvzveLLyz",
+              "AaEsMRl8BIquHGRjpPw2", "AaEsMRl8BIquHGRjpPw1",
+          )
+          headers = {"Authorization": "Bearer " + os.environ["SONAR_TOKEN"]}
+          query = urllib.parse.urlencode({"issues": ",".join(issue_keys), "ps": 100})
+          request = urllib.request.Request(
+              "https://sonarcloud.io/api/issues/search?" + query, headers=headers
+          )
+          with urllib.request.urlopen(request) as response:
+              issues = json.load(response)["issues"]
+          assert {issue["key"] for issue in issues} == set(issue_keys)
+          for issue in issues:
+              assert issue["project"] == "KageRyo_SVGConverter"
+              assert issue["rule"] == "pythonsecurity:S8707"
+          for issue in issues:
+              if issue.get("issueStatus") == "ACCEPTED":
+                  continue
+              body = urllib.parse.urlencode({
+                  "issue": issue["key"], "transition": "accept",
+              }).encode()
+              request = urllib.request.Request(
+                  "https://sonarcloud.io/api/issues/do_transition",
+                  data=body, headers=headers,
+              )
+              with urllib.request.urlopen(request) as response:
+                  result = json.load(response)["issue"]
+              assert result["issueStatus"] == "ACCEPTED", result["key"]
+              print("Accepted reviewed local path issue:", result["key"])
+          PYTHON
       - name: Analyze with SonarQube Cloud
         uses: SonarSource/sonarqube-scan-action@v7
         env:
@@ -45,3 +87,4 @@ jobs:
           args: >
             -Dsonar.organization=${{ vars.SONAR_ORGANIZATION }}
             -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.qualitygate.wait=true

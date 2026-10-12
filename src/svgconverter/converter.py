@@ -144,6 +144,37 @@ def _cleanup_temporary_output(temporary_path: Path | None) -> None:
         pass
 
 
+def _publish_output(staged_output: Path, destination: Path, overwrite: bool) -> None:
+    """Publish a complete SVG and translate publication errors for callers."""
+
+    if destination.exists() and not overwrite:
+        raise OutputExistsError(
+            f"Output appeared during conversion: {destination}. "
+            "Pass overwrite=True to replace it."
+        )
+    if destination.exists() and destination.is_dir():
+        raise InputPathError(f"Output path is a directory: {destination}")
+    if overwrite:
+        os.replace(staged_output, destination)
+    else:
+        # Publish the complete staged file without replacing another writer.
+        try:
+            publish_without_overwrite(staged_output, destination)
+        except FileExistsError as error:
+            raise OutputExistsError(
+                f"Output appeared during conversion: {destination}. "
+                "Pass overwrite=True to replace it."
+            ) from error
+        except OSError as error:
+            raise ConversionError(
+                f"Cannot safely publish SVG {destination}: {error}. "
+                "Choose an output directory with hard-link or "
+                "exclusive-rename support and "
+                "write permission, or enable overwrite=True / --overwrite "
+                "only if replacing existing output is acceptable."
+            ) from error
+
+
 def convert_file_with_metrics(
     input_path: str | Path,
     output_path: str | Path | None = None,
@@ -202,33 +233,9 @@ def convert_file_with_metrics(
             )
             embedded_raster_bytes = None
         _validate_temporary_output(staged_output, destination)
-        if destination.exists() and not overwrite:
-            raise OutputExistsError(
-                f"Output appeared during conversion: {destination}. "
-                "Pass overwrite=True to replace it."
-            )
-        if destination.exists() and destination.is_dir():
-            raise InputPathError(f"Output path is a directory: {destination}")
+        _publish_output(staged_output, destination, overwrite)
         if overwrite:
-            os.replace(staged_output, destination)
             temporary_output = None
-        else:
-            # Publish the complete staged file without replacing another writer.
-            try:
-                publish_without_overwrite(staged_output, destination)
-            except FileExistsError as error:
-                raise OutputExistsError(
-                    f"Output appeared during conversion: {destination}. "
-                    "Pass overwrite=True to replace it."
-                ) from error
-            except OSError as error:
-                raise ConversionError(
-                    f"Cannot safely publish SVG {destination}: {error}. "
-                    "Choose an output directory with hard-link or "
-                    "exclusive-rename support and "
-                    "write permission, or enable overwrite=True / --overwrite "
-                    "only if replacing existing output is acceptable."
-                ) from error
         return ConversionMetrics(
             input_path=source,
             output_path=destination,

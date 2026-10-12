@@ -34,7 +34,8 @@ error and should be fixed before merging.
   executable, and the vectorize integration path.
 - `sonarqube.yml` uses Python 3.13, installs the development and vectorize
   extras, generates `coverage.xml`, and runs
-  `SonarSource/sonarqube-scan-action@v7` with a full Git checkout.
+  `SonarSource/sonarqube-scan-action@v7` with a full Git checkout. The scanner
+  waits for the Quality Gate and fails the job when the gate fails.
 - The Sonar workflow runs on `main` pushes, manual Sonar workflow dispatches,
   and pull requests from branches in this repository. Fork pull requests keep
   the normal checks but skip Sonar so a repository secret is never exposed to
@@ -74,6 +75,23 @@ When these findings are present in SonarQube Cloud, mark each one as
 Do not use `//NOSONAR` or a source exclusion for these findings. After the
 next `main` analysis, verify that the disposition is retained and that no new
 unexplained S8707 finding appears.
+
+### S8707 review for the 1.8.2 preparation
+
+The 2026-10-12 `main` analysis at `26a80e3` reports six open S8707 issues. The following table records the reviewed design-choice dispositions; the live Sonar issue status must be verified separately before release.
+
+| Sonar issue | Reviewed operation | Disposition |
+| --- | --- | --- |
+| `AaEt3FGRhdzSzw-MMPzx` | Windows exclusive `os.rename` in `_publication.py` | Accept design choice |
+| `AaEt3FGRhdzSzw-MMPzw` | Non-replacing `os.link` in `_publication.py` | Accept design choice |
+| `AaCZij63wC-YvzveLLyy` | Output parent creation in `converter.py` | Accept design choice |
+| `AaCZij63wC-YvzveLLyz` | Explicit overwrite publication in `converter.py` | Accept design choice |
+| `AaEsMRl8BIquHGRjpPw2` | Original raster read without preprocessing in `embed.py` | Accept design choice |
+| `AaEsMRl8BIquHGRjpPw1` | Original raster read when preprocessing is unnecessary in `embed.py` | Accept design choice |
+
+All six paths originate in the caller-selected local CLI/library input and output arguments. `convert_file_with_metrics()` resolves the optional `allowed_root` and validates both input and explicit output before raster reads or output creation. Its temporary output is created beside the validated destination and is passed directly to publication. Batch conversion propagates the same root. The project has no HTTP or LLM execution boundary; an LLM caller must configure the documented root just like any other untrusted integration. The existing traversal and symlink escape tests verify this contract. `allowed_root` is a path-scope check, not a sandbox against another process changing the filesystem during conversion.
+
+Retain the rule and the Quality Gate. Record these issue-specific dispositions in SonarQube Cloud after review instead of excluding paths or changing the default local API.
 
 ## Baseline rollout
 
