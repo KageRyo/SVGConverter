@@ -26,12 +26,12 @@ def _rename_without_overwrite(source: Path, destination: Path) -> None:
                 ctypes.c_char_p,
                 ctypes.c_uint,
             ]
-            # AT_FDCWD = -100; RENAME_NOREPLACE = 1.
+            # Use the current working directory and the no-replace rename flag.
             arguments = (-100, os.fsencode(source), -100, os.fsencode(destination), 1)
         elif sys.platform == "darwin":
             rename = library.renamex_np
             rename.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
-            # RENAME_EXCL = 4.
+            # Request an exclusive rename on macOS.
             arguments = (os.fsencode(source), os.fsencode(destination), 4)
         else:
             raise OSError(errno.ENOTSUP, "exclusive rename is unavailable")

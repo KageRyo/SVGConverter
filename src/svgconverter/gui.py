@@ -972,11 +972,8 @@ class SVGConverterApp:
         state = tk.DISABLED if running else tk.NORMAL
         self.files_button.config(state=state)
         self.folder_button.config(state=state)
-        self.convert_button.config(
-            state=tk.DISABLED
-            if running
-            else (tk.NORMAL if self._selected_input_paths else tk.DISABLED)
-        )
+        can_convert = not running and bool(self._selected_input_paths)
+        self.convert_button.config(state=tk.NORMAL if can_convert else tk.DISABLED)
         self.cancel_button.config(state=tk.NORMAL if running else tk.DISABLED)
         if running:
             for widget in self._settings_widgets:

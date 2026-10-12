@@ -145,6 +145,28 @@ def _png_compatible(image: Image.Image) -> Image.Image:
     return converted
 
 
+def _requires_reencoding(
+    image_format: str,
+    output_format: str,
+    should_resize: bool,
+    embed_options: EmbedOptions,
+) -> bool:
+    """Check whether the requested format, dimensions, or encoding change bytes."""
+
+    return (
+        should_resize
+        or output_format != image_format
+        or (image_format == "JPEG" and embed_options.jpeg_quality is not None)
+        or (
+            output_format == "PNG"
+            and (
+                embed_options.png_compress_level is not None
+                or embed_options.optimize_png
+            )
+        )
+    )
+
+
 def _embedded_raster(
     source: Path, embed_options: EmbedOptions | None
 ) -> tuple[bytes, int, int, str]:
@@ -173,17 +195,8 @@ def _embedded_raster(
                 width, height, embed_options
             )
             should_resize = (target_width, target_height) != (width, height)
-            should_reencode = (
-                should_resize
-                or output_format != image_format
-                or (image_format == "JPEG" and embed_options.jpeg_quality is not None)
-                or (
-                    output_format == "PNG"
-                    and (
-                        embed_options.png_compress_level is not None
-                        or embed_options.optimize_png
-                    )
-                )
+            should_reencode = _requires_reencoding(
+                image_format, output_format, should_resize, embed_options
             )
             if not should_reencode:
                 return source.read_bytes(), width, height, mime_type

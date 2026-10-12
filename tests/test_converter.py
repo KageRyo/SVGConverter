@@ -582,8 +582,9 @@ def test_oversized_image_cannot_bypass_the_limit_when_optimizing(
         embed_module, "_read_image_metadata", read_metadata_then_lower_limit
     )
 
+    options = EmbedOptions(max_width=3)
     with pytest.raises(ConversionError, match="exceeds the safe pixel limit"):
-        convert_file(source, embed_options=EmbedOptions(max_width=3))
+        convert_file(source, embed_options=options)
 
 
 def test_recursive_directory_conversion_preserves_relative_output_paths(
