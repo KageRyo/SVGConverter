@@ -194,6 +194,8 @@ Windows 使用不覆寫的 rename，Linux 使用 `renameat2(RENAME_NOREPLACE)`�
 
 ## GUI
 
+![SVGConverter 在 Windows 上的正體中文桌面介面](docs/screenshots/gui-zh-tw.png)
+
 安裝套件後執行：
 
 ```bash

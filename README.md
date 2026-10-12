@@ -212,6 +212,8 @@ inputs, outputs, and symlink escapes outside that directory. The default
 
 ## GUI
 
+![SVGConverter desktop GUI in English on Windows](docs/screenshots/gui-en.png)
+
 Install the package and run:
 
 ```bash
