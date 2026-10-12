@@ -182,6 +182,12 @@ embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `Bat
 可使用 `progress_callback` 取得每個已處理項目；讓 `should_cancel` 回傳 `True`，即可在下一個檔案
 開始前安全停止，結果的 `cancelled` 會是 `True`。
 
+未指定 `overwrite=True` 時，完成的 SVG 會以原子性的 hard link 發布，避免並行轉換互相覆寫。
+若發生衝突，會拋出 `OutputExistsError`，批次轉換則記錄為逐檔失敗。不支援 hard link 時，
+Windows 使用不覆寫的 rename，Linux 使用 `renameat2(RENAME_NOREPLACE)`，macOS 使用
+`renamex_np(RENAME_EXCL)`。兩種操作皆不可用時會回報錯誤，不會留下不完整的 SVG。
+網路共享的原子性取決於伺服器實作，目前尚未驗證。指定 `overwrite=True` 時仍使用原子性取代。
+
 如果整合程式會接受不受信任的路徑值，請對 `convert_file()`、`convert_file_with_metrics()`、
 `convert_directory()`、`convert_paths()` 或 `SVGConverter` 傳入 `allowed_root`。Converter 會先解析路徑，
 拒絕輸入、輸出以及 symlink 跳出該資料夾的情況。預設 `allowed_root=None` 會保留本機 library 的原有行為。

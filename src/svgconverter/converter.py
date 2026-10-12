@@ -12,6 +12,7 @@ import tempfile
 from collections.abc import Iterable
 from pathlib import Path
 
+from ._publication import publish_without_overwrite
 from .batch import (
     convert_candidates,
     directory_candidates,
@@ -208,8 +209,26 @@ def convert_file_with_metrics(
             )
         if destination.exists() and destination.is_dir():
             raise InputPathError(f"Output path is a directory: {destination}")
-        os.replace(staged_output, destination)
-        temporary_output = None
+        if overwrite:
+            os.replace(staged_output, destination)
+            temporary_output = None
+        else:
+            # Publish the complete staged file without replacing another writer.
+            try:
+                publish_without_overwrite(staged_output, destination)
+            except FileExistsError as error:
+                raise OutputExistsError(
+                    f"Output appeared during conversion: {destination}. "
+                    "Pass overwrite=True to replace it."
+                ) from error
+            except OSError as error:
+                raise ConversionError(
+                    f"Cannot safely publish SVG {destination}: {error}. "
+                    "Choose an output directory with hard-link or "
+                    "exclusive-rename support and "
+                    "write permission, or enable overwrite=True / --overwrite "
+                    "only if replacing existing output is acceptable."
+                ) from error
         return ConversionMetrics(
             input_path=source,
             output_path=destination,
