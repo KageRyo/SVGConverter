@@ -7,15 +7,26 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.8.2 - 2026-10-12
+
 ### Fixed
 
 - Concurrent conversions no longer replace each other's SVG when overwrite is
   disabled. Filesystems without hard-link support use exclusive rename where
   available, preserving sequential conversion without replacing other outputs.
 
-
 - The CLI accepts `--output-dir` for a single image file, with the same
   skip, overwrite, and failure reporting as batch conversion.
+
+- TIFF preprocessing no longer reads the original raster bytes before decoding.
+- SonarQube CI now waits for the Quality Gate and reports failed gates as job
+  failures.
+
+### Changed
+
+- Simplified output publication, raster re-encoding decisions, and GUI button
+  state handling without changing conversion behavior.
+- Documented the reviewed local path design choices for Sonar's S8707 rule.
 
 ## 1.8.1 - 2026-10-07
 

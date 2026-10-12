@@ -78,7 +78,7 @@ unexplained S8707 finding appears.
 
 ### S8707 review for the 1.8.2 preparation
 
-The 2026-10-12 `main` analysis at `26a80e3` reports six open S8707 issues. The following table records the reviewed design-choice dispositions; the live Sonar issue status must be verified separately before release.
+The 2026-10-12 `main` analysis at `26a80e3` reports six open S8707 issues. The following table records the reviewed design-choice dispositions; all six were marked Accepted with the existing CI credential on 2026-10-12. The subsequent scan of the preparation commit reported Quality Gate OK with no open issues. Recheck the scan of the merged `main` commit before tagging.
 
 | Sonar issue | Reviewed operation | Disposition |
 | --- | --- | --- |
