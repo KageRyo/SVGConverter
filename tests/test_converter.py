@@ -557,6 +557,48 @@ def test_invalid_staged_svg_preserves_output(
 
 @pytest.mark.parametrize("mode", ["embed", "vectorize"])
 @pytest.mark.parametrize(
+    "document",
+    [
+        pytest.param(b'<svg xmlns="http://www.w3.org/2000/svg"/>', id="empty-svg"),
+        pytest.param(
+            b'<?xml version="1.0"?><!-- optional --><?renderer option?>'
+            b'<s:svg xmlns:s="http://www.w3.org/2000/svg" xmlns:x="urn:extension" '
+            b'custom="yes"><s:title>A &amp; B &#65;</s:title>'
+            b"<x:metadata/><s:style><![CDATA[path {fill: red;}]]></s:style>"
+            b'<s:path d="M0 0 L1 1"/></s:svg>',
+            id="optional-contents",
+        ),
+        pytest.param(
+            '<svg xmlns="http://www.w3.org/2000/svg"><title>画像</title></svg>'.encode(
+                "utf-16"
+            ),
+            id="utf16",
+        ),
+        pytest.param(
+            b'<svg xmlns="http://www.w3.org/2000/svg">'
+            + b'<path d="M0 0 L1 1"/>' * 10000
+            + b"</svg>",
+            id="many-paths",
+        ),
+    ],
+)
+def test_valid_staged_svg_is_published_unchanged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: ConversionMode,
+    document: bytes,
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    stage_svg_document(monkeypatch, document)
+
+    output = convert_file(source, mode=mode)
+
+    assert output.read_bytes() == document
+    assert not list(tmp_path.glob(".sample-*.svg.tmp"))
+
+
+@pytest.mark.parametrize("mode", ["embed", "vectorize"])
+@pytest.mark.parametrize(
     "declarations",
     [
         pytest.param('<!ENTITY text "custom">', id="internal-entity"),
