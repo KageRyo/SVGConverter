@@ -11,6 +11,8 @@ import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
+from typing import NoReturn
+from xml.parsers import expat
 
 from ._publication import publish_without_overwrite
 from .batch import (
@@ -107,8 +109,46 @@ def _temporary_output_path(destination: Path) -> Path:
     return Path(temporary_name)
 
 
+def _svg_validation_parser(destination: Path) -> expat.XMLParserType:
+    """Configure safe SVG parsing."""
+
+    parser = expat.ParserCreate(namespace_separator="}")
+
+    def validate_root(name: str, _attributes: dict[str, str]) -> None:
+        """Check the document root."""
+
+        if name != "http://www.w3.org/2000/svg}svg":
+            raise ConversionError(
+                f"Expected an SVG root in the SVG namespace for destination "
+                f"{destination}."
+            )
+        parser.StartElementHandler = None
+
+    def reject_declarations(*_arguments: object) -> NoReturn:
+        """Reject custom entity declarations."""
+
+        raise ConversionError(
+            f"SVG entity declarations are not allowed for destination {destination}."
+        )
+
+    def reject_references(*_arguments: object) -> NoReturn:
+        """Reject unresolved entity references."""
+
+        raise ConversionError(
+            f"Unresolved XML entity references are not allowed for destination "
+            f"{destination}."
+        )
+
+    parser.StartElementHandler = validate_root
+    parser.EntityDeclHandler = reject_declarations
+    parser.SkippedEntityHandler = reject_references
+    parser.ExternalEntityRefHandler = reject_references
+    parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_NEVER)
+    return parser
+
+
 def _validate_temporary_output(temporary_path: Path, destination: Path) -> None:
-    """Ensure a staged SVG exists, is non-empty, and can be read."""
+    """Validate complete staged SVG."""
 
     try:
         if not temporary_path.is_file():
@@ -120,11 +160,11 @@ def _validate_temporary_output(temporary_path: Path, destination: Path) -> None:
                 f"Conversion produced an empty SVG for destination {destination}."
             )
         with temporary_path.open("rb") as output:
-            if not output.read(1):
-                raise ConversionError(
-                    f"Conversion produced an unreadable SVG for destination "
-                    f"{destination}."
-                )
+            _svg_validation_parser(destination).ParseFile(output)
+    except expat.ExpatError as error:
+        raise ConversionError(
+            f"Invalid SVG XML for destination {destination}: {error}"
+        ) from error
     except OSError as error:
         raise ConversionError(
             f"Cannot validate SVG output for destination {destination}: {error}"
