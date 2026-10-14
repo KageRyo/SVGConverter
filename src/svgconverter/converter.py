@@ -257,7 +257,7 @@ def _validate_temporary_output(temporary_path: Path, destination: Path) -> None:
             )
         with temporary_path.open("rb") as output:
             _parse_svg_document(output, destination)
-    except expat.ExpatError as error:
+    except (expat.ExpatError, LookupError, ValueError) as error:
         raise ConversionError(
             f"Invalid SVG XML for destination {destination}: {error}"
         ) from error

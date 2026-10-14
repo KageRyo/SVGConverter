@@ -560,6 +560,18 @@ def stage_svg_document(monkeypatch: pytest.MonkeyPatch, document: bytes) -> None
             "Invalid SVG XML",
             id="unresolved-default-attribute",
         ),
+        pytest.param(
+            b'<?xml version="1.0" encoding="not-an-encoding"?>'
+            b'<svg xmlns="http://www.w3.org/2000/svg"/>',
+            "Invalid SVG XML",
+            id="unknown-encoding",
+        ),
+        pytest.param(
+            b'<?xml version="1.0" encoding="UTF-7"?>'
+            b'<svg xmlns="http://www.w3.org/2000/svg"/>',
+            "Invalid SVG XML",
+            id="unsupported-encoding",
+        ),
     ],
 )
 def test_invalid_staged_svg_preserves_output(
@@ -587,6 +599,39 @@ def test_invalid_staged_svg_preserves_output(
     else:
         assert not destination.exists()
     assert not list(tmp_path.glob(".result-*.svg.tmp"))
+
+
+@pytest.mark.parametrize("mode", ["embed", "vectorize"])
+@pytest.mark.parametrize("encoding", ["not-an-encoding", "UTF-7"])
+def test_invalid_svg_encoding_does_not_stop_batch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: ConversionMode,
+    encoding: str,
+) -> None:
+    sources = [
+        create_image(tmp_path / "first.png", "PNG"),
+        create_image(tmp_path / "second.png", "PNG"),
+    ]
+    output_directory = tmp_path / "output"
+    document = (
+        f'<?xml version="1.0" encoding="{encoding}"?>'
+        '<svg xmlns="http://www.w3.org/2000/svg"/>'
+    ).encode()
+    stage_svg_document(monkeypatch, document)
+
+    result = convert_paths(sources, output_directory, mode=mode)
+
+    assert result.success_count == 0
+    assert result.failure_count == 2
+    assert [failure.input_path for failure in result.failed] == sources
+    for failure in result.failed:
+        destination = output_directory / failure.input_path.with_suffix(".svg").name
+        assert isinstance(failure.error, ConversionError)
+        assert str(failure.input_path) in str(failure.error)
+        assert str(destination) in str(failure.error)
+        assert not destination.exists()
+    assert not list(output_directory.glob(".*.svg.tmp"))
 
 
 @pytest.mark.parametrize("mode", ["embed", "vectorize"])
