@@ -517,6 +517,12 @@ def stage_svg_document(monkeypatch: pytest.MonkeyPatch, document: bytes) -> None
         ),
         pytest.param(b"<svg/>", "SVG root", id="missing-namespace"),
         pytest.param(
+            b'<!DOCTYPE html SYSTEM "unused.dtd">'
+            b'<html xmlns="http://www.w3.org/2000/svg"/>',
+            "SVG root",
+            id="wrong-root-with-doctype",
+        ),
+        pytest.param(
             b'<svg xmlns="urn:another-format"/>', "SVG root", id="wrong-namespace"
         ),
         pytest.param(
@@ -525,6 +531,34 @@ def stage_svg_document(monkeypatch: pytest.MonkeyPatch, document: bytes) -> None
             + b"</broken>",
             "Invalid SVG XML",
             id="late-malformed-xml",
+        ),
+        pytest.param(
+            b'<!DOCTYPE svg SYSTEM "unused.dtd">'
+            b'<svg xmlns="http://www.w3.org/2000/svg" title="&missing;"/>',
+            "Invalid SVG XML",
+            id="unresolved-root-attribute",
+        ),
+        pytest.param(
+            (
+                '<!DOCTYPE svg SYSTEM "unused.dtd">'
+                '<svg xmlns="http://www.w3.org/2000/svg">'
+                '<path d="&missing;"/></svg>'
+            ).encode("utf-16"),
+            "Invalid SVG XML",
+            id="unresolved-child-attribute-utf16",
+        ),
+        pytest.param(
+            b'<!DOCTYPE svg SYSTEM "unused.dtd" [%missing;]>'
+            b'<svg xmlns="http://www.w3.org/2000/svg"/>',
+            "entity references",
+            id="unresolved-parameter-reference",
+        ),
+        pytest.param(
+            b'<!DOCTYPE svg SYSTEM "unused.dtd" '
+            b'[<!ATTLIST svg title CDATA "&missing;">]>'
+            b'<svg xmlns="http://www.w3.org/2000/svg"/>',
+            "Invalid SVG XML",
+            id="unresolved-default-attribute",
         ),
     ],
 )
@@ -580,6 +614,41 @@ def test_invalid_staged_svg_preserves_output(
             + b"</svg>",
             id="many-paths",
         ),
+        pytest.param(
+            (
+                '<?xml version="1.0" encoding="UTF-16"?>'
+                '<!DOCTYPE s:svg PUBLIC "SVG" "unused.dtd" '
+                '[<!ATTLIST s:svg title CDATA "A &amp; B">]>'
+                '<s:svg xmlns:s="http://www.w3.org/2000/svg" '
+                'literal="&amp;missing;"><s:style><![CDATA[&missing;]]>'
+                "</s:style><!-- &missing; --><?renderer &missing;?></s:svg>"
+            ).encode("utf-16"),
+            id="external-doctype-utf16",
+        ),
+        pytest.param(
+            b'<!DOCTYPE svg SYSTEM "unused.dtd" '
+            b'[<!ATTLIST svg xmlns CDATA "http://www.w3.org/2000/svg">]>'
+            b'<svg><path d="M0 0 L1 1"/></svg>',
+            id="doctype-default-namespace",
+        ),
+        pytest.param(
+            b'<!DOCTYPE svg SYSTEM "unused.dtd">'
+            b'<svg xmlns="http://www.w3.org/2000/svg" title="'
+            + b"A" * 40000
+            + b'">'
+            + b'<path d="M0 0 L1 1"/>' * 10000
+            + b"</svg>",
+            id="large-external-doctype",
+        ),
+        pytest.param(
+            b'<!DOCTYPE s:svg SYSTEM "unused.dtd" ['
+            b'<!-- first --><!ENTITY amp "&#38;#38;">'
+            b"<!ELEMENT s:svg ANY><?renderer option?>"
+            b'<!NOTATION format SYSTEM "unused.format">'
+            b'<!ATTLIST s:svg xmlns:s CDATA "http://www.w3.org/2000/svg" '
+            b'title CDATA "a>b"><!-- last -->]><s:svg/>',
+            id="mixed-doctype-declarations",
+        ),
     ],
 )
 def test_valid_staged_svg_is_published_unchanged(
@@ -598,6 +667,170 @@ def test_valid_staged_svg_is_published_unchanged(
 
 
 @pytest.mark.parametrize("mode", ["embed", "vectorize"])
+@pytest.mark.parametrize("existing_output", [False, True], ids=["new", "existing"])
+@pytest.mark.parametrize("quote", ["'", '"'], ids=["single", "double"])
+@pytest.mark.parametrize("encoding", ["utf-16", "cp1251"])
+def test_fragmented_doctype_literals_are_published_unchanged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: ConversionMode,
+    existing_output: bool,
+    quote: str,
+    encoding: str,
+) -> None:
+    opposite_quote = '"' if quote == "'" else "'"
+    identifier = "A" * 1023 + "<!" + "B" * 1021 + ">" + "C" * 1500 + opposite_quote
+    declared_encoding = "UTF-16" if encoding == "utf-16" else "windows-1251"
+    document = (
+        f'<?xml version="1.0" encoding="{declared_encoding}"?>'
+        '<!DOCTYPE svg SYSTEM "unused.dtd" ['
+        f"<!NOTATION format SYSTEM {quote}{identifier}{quote}>"
+        '<!ATTLIST svg xmlns CDATA "http://www.w3.org/2000/svg">]><svg/>'
+    ).encode(encoding)
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "result.svg"
+    if existing_output:
+        destination.write_bytes(b'<svg xmlns="http://www.w3.org/2000/svg"/>')
+    stage_svg_document(monkeypatch, document)
+
+    output = convert_file(source, destination, mode=mode, overwrite=existing_output)
+
+    assert output == destination
+    assert output.read_bytes() == document
+    assert not list(tmp_path.glob(".result-*.svg.tmp"))
+
+
+@pytest.mark.parametrize("mode", ["embed", "vectorize"])
+@pytest.mark.parametrize("existing_output", [False, True], ids=["new", "existing"])
+@pytest.mark.parametrize("content_type", ["comment", "instruction", "attribute"])
+def test_long_doctype_contents_are_published_unchanged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: ConversionMode,
+    existing_output: bool,
+    content_type: str,
+) -> None:
+    content = "Ж>x" * 2000
+    if content_type == "comment":
+        declaration = f"<!--{content}-->"
+    elif content_type == "instruction":
+        declaration = f"<?renderer {content}?>"
+    else:
+        declaration = f'<!ATTLIST svg title CDATA "{content}">'
+    document = (
+        '<?xml version="1.0" encoding="UTF-16"?>'
+        '<!DOCTYPE svg SYSTEM "unused.dtd" ['
+        '<!ATTLIST svg xmlns CDATA "http://www.w3.org/2000/svg">'
+        f'{declaration}<!ENTITY amp "&#38;#38;">]><svg/>'
+    ).encode("utf-16")
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "result.svg"
+    if existing_output:
+        destination.write_bytes(b'<svg xmlns="http://www.w3.org/2000/svg"/>')
+    stage_svg_document(monkeypatch, document)
+
+    output = convert_file(source, destination, mode=mode, overwrite=existing_output)
+
+    assert output == destination
+    assert output.read_bytes() == document
+    assert not list(tmp_path.glob(".result-*.svg.tmp"))
+
+
+@pytest.mark.parametrize("mode", ["embed", "vectorize"])
+@pytest.mark.parametrize("existing_output", [False, True], ids=["new", "existing"])
+@pytest.mark.parametrize("declaration_first", [False, True], ids=["after", "before"])
+def test_svg_rejects_parameter_entity_before_expansion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: ConversionMode,
+    existing_output: bool,
+    declaration_first: bool,
+) -> None:
+    support = '<!ATTLIST svg xmlns CDATA "http://www.w3.org/2000/svg"><!-- comment -->'
+    entity = '<!ENTITY % evil "&#60;!ELEMENT svg ANY>">%evil;'
+    declarations = entity + support if declaration_first else support + entity
+    document = (f'<!DOCTYPE svg SYSTEM "unused.dtd" [{declarations}]><svg/>').encode()
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "result.svg"
+    original = b'<svg xmlns="http://www.w3.org/2000/svg"/>'
+    if existing_output:
+        destination.write_bytes(original)
+    observed_declarations: list[str] = []
+    create_parser = converter_module.expat.ParserCreate
+
+    def observe_parser(
+        *args: object, **kwargs: object
+    ) -> converter_module.expat.XMLParserType:
+        """Observe real declaration parsing."""
+
+        parser = create_parser(*args, **kwargs)
+        parser.ElementDeclHandler = lambda name, _model: observed_declarations.append(
+            name
+        )
+        return parser
+
+    control = observe_parser()
+    control.SetParamEntityParsing(
+        converter_module.expat.XML_PARAM_ENTITY_PARSING_ALWAYS
+    )
+    control.Parse(document, True)
+    assert observed_declarations == ["svg"]
+    observed_declarations.clear()
+    monkeypatch.setattr(converter_module.expat, "ParserCreate", observe_parser)
+    stage_svg_document(monkeypatch, document)
+
+    with pytest.raises(ConversionError, match="entity declarations"):
+        convert_file(source, destination, mode=mode, overwrite=existing_output)
+
+    assert observed_declarations == []
+    if existing_output:
+        assert destination.read_bytes() == original
+    else:
+        assert not destination.exists()
+    assert not list(tmp_path.glob(".result-*.svg.tmp"))
+
+
+@pytest.mark.parametrize("mode", ["embed", "vectorize"])
+@pytest.mark.parametrize("existing_output", [False, True], ids=["new", "existing"])
+@pytest.mark.parametrize(
+    ("name", "replacement"),
+    [
+        ("amp", "&#38;#38;"),
+        ("lt", "&#38;#60;"),
+        ("gt", "&#62;"),
+        ("apos", "&#39;"),
+        ("quot", "&#34;"),
+    ],
+)
+def test_predefined_svg_entities_are_published_unchanged(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: ConversionMode,
+    existing_output: bool,
+    name: str,
+    replacement: str,
+) -> None:
+    source = create_image(tmp_path / "sample.png", "PNG")
+    destination = tmp_path / "result.svg"
+    if existing_output:
+        destination.write_bytes(b'<svg xmlns="http://www.w3.org/2000/svg"/>')
+    document = (
+        f'<!DOCTYPE svg SYSTEM "unused.dtd" [<!ENTITY {name} "{replacement}">]>'
+        f'<svg xmlns="http://www.w3.org/2000/svg">&{name};</svg>'
+    ).encode()
+    stage_svg_document(monkeypatch, document)
+
+    output = convert_file(source, destination, mode=mode, overwrite=existing_output)
+
+    assert output == destination
+    assert output.read_bytes() == document
+    assert not list(tmp_path.glob(".result-*.svg.tmp"))
+
+
+@pytest.mark.parametrize("mode", ["embed", "vectorize"])
+@pytest.mark.parametrize(
+    "external_doctype", [False, True], ids=["internal", "external"]
+)
 @pytest.mark.parametrize(
     "declarations",
     [
@@ -612,11 +845,14 @@ def test_staged_svg_rejects_entity_declarations(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     mode: ConversionMode,
+    external_doctype: bool,
     declarations: str,
 ) -> None:
     source = create_image(tmp_path / "sample.png", "PNG")
+    identifier = ' SYSTEM "unused.dtd"' if external_doctype else ""
     document = (
-        f'<!DOCTYPE svg [{declarations}]><svg xmlns="http://www.w3.org/2000/svg"/>'
+        f"<!DOCTYPE svg{identifier} [{declarations}]>"
+        '<svg xmlns="http://www.w3.org/2000/svg"/>'
     ).encode()
     stage_svg_document(monkeypatch, document)
 
@@ -629,7 +865,9 @@ def test_staged_svg_rejects_entity_declarations(
 
 @pytest.mark.parametrize("mode", ["embed", "vectorize"])
 @pytest.mark.parametrize("resource_type", ["file", "network"])
-@pytest.mark.parametrize("reference_type", ["entity", "doctype", "unresolved"])
+@pytest.mark.parametrize(
+    "reference_type", ["entity", "doctype", "unresolved", "attribute", "parameter"]
+)
 def test_staged_svg_never_accesses_external_resources(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -649,8 +887,12 @@ def test_staged_svg_never_accesses_external_resources(
     else:
         declaration = f'<!DOCTYPE svg SYSTEM "{identifier}">'
         content = "&external;" if reference_type == "unresolved" else ""
+    if reference_type == "parameter":
+        declaration = f'<!DOCTYPE svg SYSTEM "{identifier}" [%external;]>'
+    attribute = ' title="&external;"' if reference_type == "attribute" else ""
     document = (
-        f'{declaration}<svg xmlns="http://www.w3.org/2000/svg">{content}</svg>'
+        f'{declaration}<svg xmlns="http://www.w3.org/2000/svg"{attribute}>'
+        f"{content}</svg>"
     ).encode()
     stage_svg_document(monkeypatch, document)
     accesses: list[str] = []
