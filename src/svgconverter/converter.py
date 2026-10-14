@@ -11,6 +11,8 @@ import os
 import tempfile
 from collections.abc import Iterable
 from pathlib import Path
+from typing import BinaryIO, NoReturn
+from xml.parsers import expat
 
 from ._publication import publish_without_overwrite
 from .batch import (
@@ -107,8 +109,142 @@ def _temporary_output_path(destination: Path) -> Path:
     return Path(temporary_name)
 
 
+def _parse_svg_document(output: BinaryIO, destination: Path) -> None:
+    """Validate complete SVG XML."""
+
+    parser = expat.ParserCreate(namespace_separator="}")
+    strict_parser: expat.XMLParserType | None = None
+    has_internal_subset = False
+    in_doctype = False
+    declaration_open = False
+    declaration_quote: str | None = None
+
+    def validate_root(name: str, _attributes: dict[str, str]) -> None:
+        """Check the document root."""
+
+        if name != "http://www.w3.org/2000/svg}svg":
+            raise ConversionError(
+                f"Expected an SVG root in the SVG namespace for destination "
+                f"{destination}."
+            )
+        parser.StartElementHandler = None
+        if strict_parser is not None:
+            strict_parser.StartElementHandler = None
+
+    def reject_declarations(*_arguments: object) -> NoReturn:
+        """Reject custom entity declarations."""
+
+        raise ConversionError(
+            f"SVG entity declarations are not allowed for destination {destination}."
+        )
+
+    def reject_references(*_arguments: object) -> NoReturn:
+        """Reject unresolved entity references."""
+
+        raise ConversionError(
+            f"Unresolved XML entity references are not allowed for destination "
+            f"{destination}."
+        )
+
+    def start_doctype(
+        name: str,
+        system_id: str | None,
+        public_id: str | None,
+        internal_subset: int,
+    ) -> None:
+        """Normalize external doctype validation."""
+
+        nonlocal strict_parser, has_internal_subset, in_doctype
+        if system_id is None and public_id is None:
+            return
+        has_internal_subset = bool(internal_subset)
+        in_doctype = True
+        validator = expat.ParserCreate(namespace_separator="}")
+        strict_parser = validator
+        validator.StartElementHandler = validate_root
+
+        def forward_markup(data: str) -> None:
+            """Forward original XML tokens."""
+
+            nonlocal declaration_open, declaration_quote
+            if in_doctype:
+                if not declaration_open:
+                    if not data.startswith("<!"):
+                        return
+                    declaration_open = True
+                for character in data:
+                    if declaration_quote is not None:
+                        if character == declaration_quote:
+                            declaration_quote = None
+                    elif character in ("'", '"'):
+                        declaration_quote = character
+                    elif character == ">":
+                        declaration_open = False
+            validator.Parse(data, False)
+
+        def forward_comment(data: str) -> None:
+            """Forward complete XML comments."""
+
+            validator.Parse(f"<!--{data}-->", False)
+
+        def forward_instruction(target: str, data: str) -> None:
+            """Forward complete processing instructions."""
+
+            validator.Parse(f"<?{target} {data}?>", False)
+
+        # Skipped external DTDs hide unknown entities in attribute values.
+        # Reparse without external identifiers while retaining internal declarations.
+        # Ignore fragments of predefined declarations suppressed by EntityDeclHandler.
+        parser.StartElementHandler = None
+        parser.DefaultHandler = forward_markup
+        parser.CommentHandler = forward_comment
+        parser.ProcessingInstructionHandler = forward_instruction
+        validator.Parse(f"<!DOCTYPE {name}" + (" [" if has_internal_subset else ""))
+
+    def end_doctype() -> None:
+        """Finish normalized doctype validation."""
+
+        nonlocal in_doctype
+        if strict_parser is not None:
+            strict_parser.Parse("]>" if has_internal_subset else ">")
+        in_doctype = False
+
+    def ignore_external_dtd(
+        context: str | None,
+        _base: str | None,
+        _system_id: str | None,
+        _public_id: str | None,
+    ) -> int:
+        """Skip external resource loading."""
+
+        if context is not None:
+            reject_references()
+        return 1
+
+    parser.StartElementHandler = validate_root
+    parser.EntityDeclHandler = reject_declarations
+    parser.SkippedEntityHandler = reject_references
+    parser.ExternalEntityRefHandler = ignore_external_dtd
+    parser.StartDoctypeDeclHandler = start_doctype
+    parser.EndDoctypeDeclHandler = end_doctype
+    parser.SetParamEntityParsing(expat.XML_PARAM_ENTITY_PARSING_ALWAYS)
+    try:
+        parser.ParseFile(output)
+        if strict_parser is not None:
+            strict_parser.Parse(b"", True)
+    finally:
+        parser.StartElementHandler = None
+        parser.StartDoctypeDeclHandler = None
+        parser.EndDoctypeDeclHandler = None
+        parser.DefaultHandler = None
+        parser.CommentHandler = None
+        parser.ProcessingInstructionHandler = None
+        if strict_parser is not None:
+            strict_parser.StartElementHandler = None
+
+
 def _validate_temporary_output(temporary_path: Path, destination: Path) -> None:
-    """Ensure a staged SVG exists, is non-empty, and can be read."""
+    """Validate complete staged SVG."""
 
     try:
         if not temporary_path.is_file():
@@ -120,11 +256,11 @@ def _validate_temporary_output(temporary_path: Path, destination: Path) -> None:
                 f"Conversion produced an empty SVG for destination {destination}."
             )
         with temporary_path.open("rb") as output:
-            if not output.read(1):
-                raise ConversionError(
-                    f"Conversion produced an unreadable SVG for destination "
-                    f"{destination}."
-                )
+            _parse_svg_document(output, destination)
+    except (expat.ExpatError, LookupError, ValueError) as error:
+        raise ConversionError(
+            f"Invalid SVG XML for destination {destination}: {error}"
+        ) from error
     except OSError as error:
         raise ConversionError(
             f"Cannot validate SVG output for destination {destination}: {error}"
