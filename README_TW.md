@@ -138,6 +138,12 @@ svgconverter illustration.png --png-compress-level 9 --optimize-png
 可安全使用同一組選項。若縮放 JPEG 時未指定 quality，會使用 95。CLI 會在每次轉換或批次摘要中
 顯示輸入、嵌入點陣與 SVG 的大小。這些選項只適用於 `embed` 模式。
 
+動態 WebP 與 APNG 在不需要修改點陣資料時，會保留原始 bytes、影格與時間資訊。
+若要求縮放這兩種格式，或對 APNG 套用 PNG 壓縮／最佳化，會回報 `ConversionError`，
+避免無聲遺失動畫。移除這些選項即可原樣嵌入動畫；大於來源尺寸的縮放上限及其他格式專用選項
+不會改動原始 bytes。批次轉換會將不支援的動畫處理列為個別檔案失敗，並繼續處理其餘影像；
+CLI 會回傳結束代碼 1，GUI 會顯示失敗詳情。動畫能否播放仍取決於 SVG 檢視器。
+
 ## Python API
 
 ```python

@@ -148,6 +148,15 @@ for mixed formats. A resized JPEG without an explicit quality uses 95. The CLI
 reports input, embedded-raster, and SVG sizes after each conversion or batch.
 These controls apply to `embed` mode only.
 
+Animated WebP and APNG retain their original bytes, including frames and timing,
+when no raster changes are needed. Resizing either format, or applying PNG
+compression/optimization to APNG, raises `ConversionError` instead of silently
+discarding animation. Remove those options to embed the animation unchanged.
+Larger size limits and options for other formats leave the bytes unchanged.
+In a batch, an unsupported animated conversion is reported as a per-file failure
+and remaining images continue; the CLI returns exit code 1 and the GUI shows the
+failure details. Animation playback depends on the SVG viewer.
+
 ## Python API
 
 ```python
