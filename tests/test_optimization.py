@@ -65,7 +65,19 @@ def test_cli_optimization_is_explicit_and_vectorize_only(
     fake_vectorizer(monkeypatch)
     source = tmp_path / "logo.png"
     Image.new("RGB", (20, 20)).save(source)
-    assert main([str(source), "--mode", "vectorize", "--optimize-svg"]) == 0
+    assert (
+        main(
+            [
+                str(source),
+                "--mode",
+                "vectorize",
+                "--vectorize-preset",
+                "logo",
+                "--optimize-svg",
+            ]
+        )
+        == 0
+    )
     assert source.with_suffix(".svg").stat().st_size < len(SVG.encode())
     with pytest.raises(SystemExit) as error:
         main([str(source), "--optimize-svg"])
