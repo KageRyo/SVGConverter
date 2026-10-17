@@ -46,6 +46,7 @@ from .models import (
     VectorizeHierarchy,
     VectorizeOptions,
 )
+from .optimization import optimize_svg_file
 from .paths import ensure_within_root, resolve_allowed_root
 from .vectorize import vectorize_image
 
@@ -369,6 +370,9 @@ def convert_file_with_metrics(
             )
             embedded_raster_bytes = None
         _validate_temporary_output(staged_output, destination)
+        if mode == "vectorize" and vectorize_options and vectorize_options.optimize_svg:
+            optimize_svg_file(staged_output)
+            _validate_temporary_output(staged_output, destination)
         _publish_output(staged_output, destination, overwrite)
         if overwrite:
             temporary_output = None

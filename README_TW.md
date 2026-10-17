@@ -292,3 +292,13 @@ Linux 與 macOS 使用者請使用上述 Python 安裝方式。目前暫不提�
 ## 貢獻與授權
 
 本機檢查與提交格式請見 [CONTRIBUTING.md](CONTRIBUTING.md)。本專案採用 [MIT License](LICENSE)。
+
+### 向量 SVG 壓縮
+
+使用 `svgconverter logo.png --mode vectorize --optimize-svg`，或在 Python API 傳入
+`VectorizeOptions(optimize_svg=True)`。這個選用功能只刪除 XML 縮排與路徑指令旁多餘的空白，
+不會四捨五入座標、更動描繪參數或改變有意義的文字。僅保留較小的結果，大小統計採最終 bytes；
+轉換或最佳化失敗時會保留既有 SVG。預設不啟用，與 Embed 的點陣最佳化分開。
+
+VTracer 本身的標記已相當精簡，因此縮減幅度有限；實測大小與渲染比對見
+[評估文件](docs/svg-optimization.md)。

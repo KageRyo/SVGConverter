@@ -330,3 +330,16 @@ limitations.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and commit conventions.
 This project is licensed under the [MIT License](LICENSE).
+
+### Vector SVG compaction
+
+Use `svgconverter logo.png --mode vectorize --optimize-svg` or pass
+`VectorizeOptions(optimize_svg=True)` to the Python API. This opt-in removes
+redundant XML indentation and whitespace around path commands. It never rounds
+coordinates, changes tracing settings, or changes significant text. Output is
+kept only when smaller; metrics reflect the final bytes. Conversion/optimization
+failures leave existing SVGs intact. The default remains unoptimized.
+
+Reductions are modest for VTracer's already compact markup. See the
+[evaluation and rendering comparison](docs/svg-optimization.md) for measured
+examples and scope. This setting is separate from Embed raster optimization.

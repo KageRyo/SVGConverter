@@ -96,6 +96,6 @@ jobs:
           python-version: "3.13"
           cache: pip
       - name: Install vectorize extra and test tools
-        run: python -m pip install -e ".[dev,vectorize]"
+        run: python -m pip install -e ".[dev,vectorize]" "resvg-py>=0.5,<0.6"
       - name: Test vectorize mode
-        run: pytest -q tests/test_vectorize.py
+        run: pytest -q tests/test_vectorize.py tests/test_optimization.py
