@@ -69,9 +69,10 @@ try {
         }
         Write-Host "Packaged $mode conversion passed ($((Get-Item -LiteralPath $outputPath).Length) bytes)."
     }
-    $missingPath = Join-Path $testRoot "missing.png"
+    $invalidPath = Join-Path $testRoot "invalid.png"
+    Set-Content -LiteralPath $invalidPath -Value "This is not a PNG."
     $failureOutput = Join-Path $testRoot "failure.svg"
-    if ((Invoke-Conversion $missingPath $failureOutput "embed") -ne 1 -or
+    if ((Invoke-Conversion $invalidPath $failureOutput "embed") -ne 1 -or
         (Test-Path -LiteralPath $failureOutput)) {
         throw "The packaged CLI did not preserve conversion failure behavior."
     }
