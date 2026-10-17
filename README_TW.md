@@ -224,10 +224,19 @@ svgconverter-gui
 轉換後，結果區會說明批次是完成、略過、部分失敗或取消，並顯示已轉換／略過／失敗數量；有 metrics
 時也會顯示來源與 SVG 大小、輸出位置，並提供**開啟輸出資料夾**與**轉換其他圖片**操作。
 
-和命令列與 Python API 一樣，`vectorize` 模式需要安裝選用的 `vectorize` extra。
+透過 Python 安裝時，和命令列與 Python API 一樣，`vectorize` 模式需要安裝選用的
+`vectorize` extra。
 
 支援此功能的 release 中，Windows 使用者可從 GitHub Release 頁面下載獨立的
-`SVGConverter-vX.Y.Z-windows-x86_64.exe` asset，不需要自行安裝 Python。
+`SVGConverter-vX.Y.Z-windows-x86_64.exe` asset，內含 VTracer 後端，可直接使用 Embed
+與 Vectorize，不需要自行安裝 Python。自動化轉換時，可在 CLI 選項前加上 `--cli`，例如：
+
+```powershell
+.\SVGConverter-vX.Y.Z-windows-x86_64.exe --cli logo.png --mode vectorize --output logo.svg
+```
+
+Windows 執行檔不會開啟主控台視窗，自動化流程應檢查結束代碼與輸出檔案；需要終端輸出時，
+請使用 Python CLI。
 
 ## 貢獻與授權
 

@@ -1359,13 +1359,14 @@ def test_embed_options_are_rejected_in_vectorize_mode(tmp_path: Path) -> None:
         convert_file(source, mode="vectorize", embed_options=options)
 
 
+@pytest.mark.parametrize("import_error", [ModuleNotFoundError, ImportError, OSError])
 def test_vectorize_mode_explains_missing_optional_dependency(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, import_error: type[Exception]
 ) -> None:
     source = create_image(tmp_path / "sample.png", "PNG")
 
     def raise_missing_module(_: str) -> object:
-        raise ModuleNotFoundError("No module named 'vtracer'")
+        raise import_error("Cannot load the VTracer native backend")
 
     monkeypatch.setattr(
         vectorize_module.importlib, "import_module", raise_missing_module

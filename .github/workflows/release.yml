@@ -66,12 +66,15 @@ jobs:
       - name: Install application and PyInstaller
         run: |
           python -m pip install --upgrade pip
-          python -m pip install . pyinstaller
+          python -m pip install ".[vectorize]" pyinstaller
       - name: Build standalone GUI executable
         run: >
           pyinstaller --noconfirm --clean --onefile --windowed
           --name SVGConverter --paths src
-          --collect-data "svgconverter.resources" main.py
+          --collect-data "svgconverter.resources" --collect-all vtracer main.py
+      - name: Smoke test packaged Embed and Vectorize conversion
+        shell: pwsh
+        run: ./.github/scripts/smoke-windows-executable.ps1 -Executable dist/SVGConverter.exe
       - name: Smoke test executable startup
         shell: pwsh
         run: |

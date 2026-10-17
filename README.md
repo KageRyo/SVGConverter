@@ -253,12 +253,21 @@ partially failed, or was cancelled, together with converted/skipped/failed count
 It includes source and SVG sizes when metrics are available, identifies the output
 location, and provides **Open output folder** and **Convert more images** actions.
 
-Vectorize mode requires the optional `vectorize` extra, just like the CLI and
-Python API.
+When installed with Python, Vectorize mode requires the optional `vectorize`
+extra, just like the CLI and Python API.
 
 For a supported release, Windows users can download the standalone
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset from the GitHub Release page; it
-does not require a local Python installation.
+includes the VTracer backend for both Embed and Vectorize and does not require
+a local Python installation. For automated file conversion, prefix CLI options
+with `--cli`, for example:
+
+```powershell
+.\SVGConverter-vX.Y.Z-windows-x86_64.exe --cli logo.png --mode vectorize --output logo.svg
+```
+
+The Windows build has no console window, so automation should check its exit code
+and generated files; use the Python CLI when terminal output is needed.
 
 ## Contributing and license
 
