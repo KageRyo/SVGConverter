@@ -570,3 +570,45 @@ def test_run_conversion_forwards_the_settings_snapshot(
         "should_cancel": app._cancel_event.is_set,
     }
     assert app._events.get_nowait() == ("done", result)
+
+
+def test_missing_native_backend_is_reported_as_failed_gui_conversion(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from PIL import Image
+
+    import svgconverter.vectorize as vectorize_module
+
+    source = tmp_path / "logo.png"
+    Image.new("RGB", (16, 16), "black").save(source)
+    app = object.__new__(SVGConverterApp)
+    app._events = Queue()
+    app._cancel_event = Event()
+    options = GuiConversionOptions(
+        mode="vectorize",
+        output_dir=None,
+        overwrite=False,
+        recursive=False,
+        embed_options=None,
+        vectorize_options=None,
+    )
+
+    def fail_import(_: str) -> object:
+        raise ImportError("VTracer DLL could not be loaded")
+
+    monkeypatch.setattr(vectorize_module.importlib, "import_module", fail_import)
+
+    app._run_conversion((str(source),), options)
+
+    events = []
+    while not app._events.empty():
+        events.append(app._events.get_nowait())
+    kind, result = events[-1]
+    assert kind == "done"
+    assert isinstance(result, BatchResult)
+    assert result.success_count == 0
+    assert result.failure_count == 1
+    assert result_status_key(result) == "result_failed"
+    assert "latest Windows executable" in format_failure_details(result)
+    assert "VTracer DLL could not be loaded" in format_failure_details(result)
+    assert not source.with_suffix(".svg").exists()

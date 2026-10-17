@@ -12,10 +12,12 @@ from .models import VectorizeOptions
 def _load_vtracer() -> object:
     try:
         return importlib.import_module("vtracer")
-    except ModuleNotFoundError as error:
+    except (ImportError, OSError) as error:
         raise VectorizationDependencyError(
-            "Vectorize mode requires the optional VTracer backend. "
-            "Install it with: pip install 'svgconverter[vectorize]'"
+            "Vectorize mode requires a working VTracer backend. "
+            "For Python installs: pip install 'svgconverter[vectorize]'. "
+            "For the standalone app, download the latest Windows executable. "
+            f"Backend error: {error}"
         ) from error
 
 
