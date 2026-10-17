@@ -164,3 +164,8 @@ cython_debug/
 
 # Local git worktrees
 .worktrees/
+
+# Separate native GUI coverage reports
+.coverage-gui
+coverage-gui.xml
+htmlcov-gui/

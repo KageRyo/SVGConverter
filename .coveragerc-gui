@@ -1,0 +1,16 @@
+[run]
+branch = True
+source = svgconverter
+relative_files = True
+data_file = .coverage-gui
+
+[report]
+include = */svgconverter/gui.py
+show_missing = True
+fail_under = 80
+
+[xml]
+output = coverage-gui.xml
+
+[html]
+directory = htmlcov-gui

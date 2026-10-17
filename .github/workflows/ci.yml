@@ -36,3 +36,38 @@ jobs:
         run: pytest --cov=svgconverter --cov-report=term-missing
       - name: Type check
         run: pyright src/
+
+  gui-coverage:
+    name: GUI coverage baseline
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install the virtual display and Tk runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb xauth python3-tk
+      - name: Install application and GUI test dependencies
+        run: |
+          python -m pip install -e ".[dev,vectorize]" \
+            'resvg-py>=0.5,<0.6' 'tkinterdnd2>=0.4.3,<0.5'
+          python -c "import tkinter; print('Tk runtime:', tkinter.TkVersion)"
+      - name: Measure GUI coverage on a native event loop
+        env:
+          SVGCONVERTER_NATIVE_GUI: "1"
+        run: >
+          xvfb-run -a pytest --cov=svgconverter --cov-config=.coveragerc-gui
+          --cov-report=term-missing --cov-report=xml --cov-report=html
+      - name: Upload the separate GUI coverage report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gui-coverage
+          path: |
+            coverage-gui.xml
+            htmlcov-gui/
+          retention-days: 14
+          if-no-files-found: warn
