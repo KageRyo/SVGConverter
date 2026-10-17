@@ -27,9 +27,12 @@ python -m build
 python -m twine check dist/*
 ```
 
-Coverage has an 85% minimum configured in `pyproject.toml`. The GUI event
-loop is excluded from the package coverage total because it is an interactive
-boundary; focused GUI tests still run as part of the test suite.
+Core coverage has an unchanged 85% minimum configured in `pyproject.toml`.
+The GUI is measured separately by the **GUI coverage baseline** CI job, with an
+80% statement/branch baseline configured in `.coveragerc-gui`. Headless GUI unit
+tests run everywhere; native Tk state and event-loop checks run explicitly under
+Xvfb in that job. See [GUI coverage and native tests](docs/gui-testing.md) for the
+local command, report artifacts and remaining integration gaps.
 
 The [SonarQube Cloud setup and rollout guide](docs/sonarqube.md) documents the
 maintainer-only variables, token, baseline review, and pull request check
