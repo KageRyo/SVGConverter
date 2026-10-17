@@ -201,6 +201,13 @@ def _embedded_raster(
             if not should_reencode:
                 return source.read_bytes(), width, height, mime_type
 
+            if image_format in {"PNG", "WEBP"} and getattr(image, "is_animated", False):
+                raise ConversionError(
+                    f"Cannot preprocess animated {image_format} image {source}: "
+                    "resizing or re-encoding would discard animation frames. "
+                    "Use Embed without options that change the raster bytes."
+                )
+
             image.load()
             # Bake EXIF orientation into the pixels so resizing uses the displayed
             # axes and the re-encoded raster cannot be rotated a second time.

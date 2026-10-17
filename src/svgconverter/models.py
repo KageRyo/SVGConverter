@@ -24,7 +24,8 @@ class EmbedOptions:
     lossless PNG. ``max_width`` and ``max_height`` only downscale and always
     preserve the aspect ratio. JPEG and PNG options apply only to their
     respective output formats, which makes a single batch configuration safe
-    for mixed input files.
+    for mixed input files. Animated WebP and APNG keep their original bytes;
+    options that would resize or re-encode them raise ``ConversionError``.
     """
 
     max_width: int | None = None
