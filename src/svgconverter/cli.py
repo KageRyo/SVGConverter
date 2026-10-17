@@ -117,6 +117,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     vectorize_group.add_argument(
+        "--optimize-svg",
+        action="store_true",
+        help="Remove redundant SVG markup whitespace without changing path precision",
+    )
+    vectorize_group.add_argument(
         "--vectorize-color-mode",
         choices=("color", "binary"),
         help="Trace colour regions or high-contrast binary artwork",
@@ -316,6 +321,7 @@ def _vectorize_options_from_arguments(
             "color_precision": arguments.color_precision,
             "layer_difference": arguments.layer_difference,
             "path_precision": arguments.path_precision,
+            "optimize_svg": arguments.optimize_svg,
         }.items()
         if value is not None
     }
@@ -339,6 +345,8 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     parser = build_parser()
     arguments = parser.parse_args(argv)
+    if arguments.optimize_svg and arguments.mode != "vectorize":
+        parser.error("--optimize-svg requires --mode vectorize")
     vectorize_options = _vectorize_options_from_arguments(arguments)
     try:
         embed_options = _embed_options_from_arguments(arguments)

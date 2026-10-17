@@ -81,6 +81,7 @@ class VectorizeOptions:
     color_precision: int | None = None
     layer_difference: int | None = None
     path_precision: int | None = None
+    optimize_svg: bool = False
 
     def as_vtracer_kwargs(self) -> dict[str, str | int]:
         """Return keyword arguments understood by VTracer's stable API."""
