@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 import os
+import platform
+import sys
+import tkinter
 from collections.abc import Iterator
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -19,13 +23,33 @@ pytestmark = pytest.mark.skipif(
 
 @pytest.fixture
 def native_app() -> Iterator[SVGConverterApp]:
+    print(
+        f"Native runtime: {platform.system()} {platform.machine()}, "
+        f"Python {platform.python_version()}, Tcl/Tk "
+        f"{tkinter.TclVersion}/{tkinter.TkVersion}, "
+        f"tkinterdnd2 {version('tkinterdnd2')}"
+    )
+    for script in (Path(sys.base_prefix) / "tcl").glob("tcl*/init.tcl"):
+        print(f"Interpreter Tcl startup script: {script} (exists={script.is_file()})")
     app = SVGConverterApp()
     try:
+        library = Path(app.root.tk.call("info", "library"))
+        print(
+            f"Loaded Tcl library: {library} (init={(library / 'init.tcl').is_file()})"
+        )
+        if not app._drop_available:
+            # The normal GUI retains working pickers when loading fails. In this
+            # explicit native check, surface Tcl's original load error as well.
+            app.root.tk.call("package", "require", "tkdnd")
         assert app._drop_available, "Native tkinterdnd2 must load for this smoke check"
         app.root.update()
         yield app
     finally:
         app.root.destroy()
+        print(
+            f"After window teardown: {library / 'init.tcl'} exists="
+            f"{(library / 'init.tcl').is_file()}"
+        )
 
 
 def deliver_file_drop(app: SVGConverterApp, paths: tuple[Path, ...]) -> str:
