@@ -343,11 +343,13 @@ The comparison window shows the source image beside the rendered SVG, with the
 actual dimensions and source/SVG byte sizes. Thumbnails are bounded to 360 pixels
 per side; the displayed byte sizes refer to the full conversion. Preview captures
 the selected Embed or Vectorize settings when clicked and runs in a background
-worker. Changing settings requires another explicit preview.
+process so native tracing and rendering cannot stall the interface. Changing
+settings requires another explicit preview.
 
 Preview writes to a private temporary directory, removes it before showing the
 comparison, and never uses your final output path or overwrite setting. Cancel
-stops after the current stage; closing the application waits for worker cleanup.
+terminates the preview process; closing the application waits for the child to
+exit and for temporary files to be removed.
 Missing renderer or VTracer dependencies produce installation instructions.
 Windows standalone builds include the preview renderer.
 
@@ -359,6 +361,18 @@ EXIF orientation or decode every supported raster format. This rendering adapter
 preserves the selected resizing/compression results and never changes the
 generated SVG or its reported byte size. Different SVG viewers may render small
 details differently.
+
+To export a bounded, static preview PNG without opening the GUI:
+
+```bash
+python -m svgconverter.preview_cli logo.png --output preview.png --mode vectorize
+# Windows standalone executable:
+SVGConverter.exe --preview logo.png --output preview.png --mode vectorize
+```
+
+The preview export requires a new `.png` destination, preserves existing files,
+and never saves or replaces the source's final SVG. It uses the selected mode's
+default conversion settings. Omit `--mode vectorize` for Embed.
 
 For a supported release, Windows users can download the standalone
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset from the GitHub Release page; it

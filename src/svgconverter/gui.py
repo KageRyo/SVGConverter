@@ -41,8 +41,8 @@ from .preview import (
     PreviewCancelled,
     PreviewDependencyError,
     PreviewResult,
-    create_preview,
 )
+from .preview_process import create_preview
 
 _POLL_INTERVAL_MS = 75
 _IMAGE_FILE_TYPES = [
@@ -1283,4 +1283,7 @@ class SVGConverterApp:
 def run_gui() -> None:
     """Launch the SVGConverter desktop interface."""
 
+    from multiprocessing import freeze_support
+
+    freeze_support()
     SVGConverterApp().run()

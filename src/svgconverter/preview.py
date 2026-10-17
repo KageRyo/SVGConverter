@@ -110,8 +110,9 @@ def _check_cancelled(should_cancel: Callable[[], bool] | None) -> None:
         raise PreviewCancelled("Preview cancelled.")
 
 
-def create_preview(
+def _create_preview_in_directory(
     input_path: str | Path,
+    directory: Path,
     *,
     mode: ConversionMode = "embed",
     embed_options: EmbedOptions | None = None,
@@ -119,11 +120,7 @@ def create_preview(
     should_cancel: Callable[[], bool] | None = None,
     thumbnail_size: tuple[int, int] = (360, 360),
 ) -> PreviewResult:
-    """Convert privately, render bounded thumbnails, and remove every temp file.
-
-    Cancellation waits for the current conversion/render stage to finish. Only
-    detached PNG bytes and metadata survive the temporary directory context.
-    """
+    """Run the complete pipeline inside a directory owned by the caller."""
 
     if any(value <= 0 or value > 1024 for value in thumbnail_size):
         raise ValueError("Preview thumbnail dimensions must be between 1 and 1024.")
@@ -133,42 +130,67 @@ def create_preview(
     try:
         source_png, source_size, animated = _source_thumbnail(source, thumbnail_size)
         _check_cancelled(should_cancel)
-        with TemporaryDirectory(prefix="svgconverter-preview-") as directory:
-            output = Path(directory) / "preview.svg"
-            metric = convert_file_with_metrics(
-                source,
-                output,
-                mode=mode,
-                embed_options=embed_options,
-                vectorize_options=vectorize_options,
-            )
-            _check_cancelled(should_cancel)
-            output_size = _svg_size(output)
-            scale = min(
-                1.0,
-                *(
-                    bound / size
-                    for bound, size in zip(thumbnail_size, output_size, strict=True)
-                ),
-            )
-            render_size = tuple(max(1, round(size * scale)) for size in output_size)
-            rendered_png = _render_svg(
-                renderer, output, (render_size[0], render_size[1])
-            )
-            _check_cancelled(should_cancel)
-            return PreviewResult(
-                input_path=source,
-                mode=mode,
-                source_png=source_png,
-                rendered_png=rendered_png,
-                source_size=source_size,
-                output_size=output_size,
-                input_bytes=metric.input_bytes,
-                svg_bytes=metric.svg_bytes,
-                embedded_raster_bytes=metric.embedded_raster_bytes,
-                animated=animated,
-            )
+        output = directory / "preview.svg"
+        metric = convert_file_with_metrics(
+            source,
+            output,
+            mode=mode,
+            embed_options=embed_options,
+            vectorize_options=vectorize_options,
+        )
+        _check_cancelled(should_cancel)
+        output_size = _svg_size(output)
+        scale = min(
+            1.0,
+            *(
+                bound / size
+                for bound, size in zip(thumbnail_size, output_size, strict=True)
+            ),
+        )
+        render_size = tuple(max(1, round(size * scale)) for size in output_size)
+        rendered_png = _render_svg(renderer, output, (render_size[0], render_size[1]))
+        _check_cancelled(should_cancel)
+        return PreviewResult(
+            input_path=source,
+            mode=mode,
+            source_png=source_png,
+            rendered_png=rendered_png,
+            source_size=source_size,
+            output_size=output_size,
+            input_bytes=metric.input_bytes,
+            svg_bytes=metric.svg_bytes,
+            embedded_raster_bytes=metric.embedded_raster_bytes,
+            animated=animated,
+        )
     except PreviewCancelled:
         raise
     except Exception as error:
         raise PreviewError(str(error)) from error
+
+
+def create_preview(
+    input_path: str | Path,
+    *,
+    mode: ConversionMode = "embed",
+    embed_options: EmbedOptions | None = None,
+    vectorize_options: VectorizeOptions | None = None,
+    should_cancel: Callable[[], bool] | None = None,
+    thumbnail_size: tuple[int, int] = (360, 360),
+) -> PreviewResult:
+    """Create a synchronous preview with cleanup at each safe stage boundary.
+
+    The GUI uses :mod:`svgconverter.preview_process` to isolate native work from
+    Tk's interpreter. This synchronous service remains available to callers
+    that already run inside a suitable process.
+    """
+
+    with TemporaryDirectory(prefix="svgconverter-preview-") as directory:
+        return _create_preview_in_directory(
+            input_path,
+            Path(directory),
+            mode=mode,
+            embed_options=embed_options,
+            vectorize_options=vectorize_options,
+            should_cancel=should_cancel,
+            thumbnail_size=thumbnail_size,
+        )

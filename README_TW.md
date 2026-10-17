@@ -301,10 +301,11 @@ python -m pip install "svgconverter[preview,vectorize]"
 
 比較視窗會並排顯示來源與 SVG 渲染結果，附上實際尺寸及來源／SVG byte 大小。
 縮圖每邊最多 360 像素，顯示的 byte 大小則是完整轉換結果。
-預覽會擷取按下按鈕當下的 Embed 或 Vectorize 設定，在背景執行；調整設定後須再次按下預覽。
+預覽會擷取按下按鈕當下的 Embed 或 Vectorize 設定，在獨立處理程序執行，避免原生描圖與渲染
+阻塞介面；調整設定後須再次按下預覽。
 
 預覽只寫入私有暫存資料夾，顯示比較前就會清除，不使用最終輸出路徑或覆寫設定。
-取消會在目前處理階段完成後停止；關閉應用程式會等待背景工作清理完成。
+取消會終止預覽子程序；關閉應用程式會等待子程序結束並清除暫存檔案。
 缺少 renderer 或 VTracer 時會顯示安裝指令。Windows 獨立版會包含預覽 renderer。
 
 動態影像以代表性的第一幀顯示，不預覽動畫時間資訊；一般轉換政策仍適用。
@@ -312,6 +313,17 @@ python -m pip install "svgconverter[preview,vectorize]"
 支援的點陣格式，Embed 預覽會將**轉換後實際嵌入的點陣資料**在記憶體轉成 PNG 再渲染。
 此步驟保留選定的縮放與壓縮結果，不修改產生的 SVG 或回報的 byte 大小。
 不同 SVG 檢視器的細節呈現仍可能略有差異。
+
+不開啟 GUI，也可以輸出尺寸受限的靜態預覽 PNG：
+
+```bash
+python -m svgconverter.preview_cli logo.png --output preview.png --mode vectorize
+# Windows 獨立執行檔：
+SVGConverter.exe --preview logo.png --output preview.png --mode vectorize
+```
+
+預覽匯出要求尚未存在的 `.png` 目的檔案，保留既有檔案，並且不儲存或取代來源的最終 SVG。
+此指令使用所選模式的預設轉換設定；省略 `--mode vectorize` 即為 Embed。
 
 支援此功能的 release 中，Windows 使用者可從 GitHub Release 頁面下載獨立的
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset，內含 VTracer 後端，可直接使用 Embed

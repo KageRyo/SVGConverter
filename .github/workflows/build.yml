@@ -102,4 +102,4 @@ jobs:
       - name: Install vectorize extra and test tools
         run: python -m pip install -e ".[dev,vectorize,preview]"
       - name: Test vectorize mode
-        run: pytest -q tests/test_vectorize.py tests/test_optimization.py tests/test_preview.py
+        run: pytest -q tests/test_vectorize.py tests/test_optimization.py tests/test_preview.py tests/test_preview_process.py tests/test_launcher.py
