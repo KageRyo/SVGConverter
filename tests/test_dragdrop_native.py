@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import os
 import platform
 import sys
@@ -22,7 +23,7 @@ pytestmark = pytest.mark.skipif(
 
 
 @pytest.fixture
-def native_app() -> Iterator[SVGConverterApp]:
+def native_app(caplog: pytest.LogCaptureFixture) -> Iterator[SVGConverterApp]:
     print(
         f"Native runtime: {platform.system()} {platform.machine()}, "
         f"Python {platform.python_version()}, Tcl/Tk "
@@ -31,7 +32,8 @@ def native_app() -> Iterator[SVGConverterApp]:
     )
     for script in (Path(sys.base_prefix) / "tcl").glob("tcl*/init.tcl"):
         print(f"Interpreter Tcl startup script: {script} (exists={script.is_file()})")
-    app = SVGConverterApp()
+    with caplog.at_level(logging.DEBUG, logger="svgconverter.dragdrop"):
+        app = SVGConverterApp()
     try:
         library = Path(app.root.tk.call("info", "library"))
         print(

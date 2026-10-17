@@ -62,8 +62,10 @@ remain separate. Before tagging, also test actual Explorer drag gestures against
 the downloaded executable, including partial invalid drops and conversion in
 progress.
 
-The optional `gui` extra does not install Tkinter or Tcl/Tk. The pinned
-`tkinterdnd2` native extension currently targets Tcl/Tk 8.x; incompatible Tk 9
+The optional `gui` extra does not install Tkinter or Tcl/Tk. It restricts
+`tkinterdnd2` to the 0.4.3 series for Tcl/Tk 8.x compatibility; 0.4.4.1 includes a
+macOS arm64 Tcl 9 binary that cannot load in the Python 3.13/Tk 8.6 runner.
+All native jobs must pass before upgrading this dependency. Incompatible Tk 9
 builds or unavailable OS/CPU binaries fall back to ordinary file/folder pickers.
 Linux/macOS Python users retain those controls even without native drop support.
 

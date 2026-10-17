@@ -1,12 +1,15 @@
 """Optional native file dropping and path normalization for the desktop UI."""
 
 import importlib
+import logging
 import os
 import tkinter as tk
 from collections.abc import Iterable
 from pathlib import Path
 
 from .embed import SUPPORTED_EXTENSIONS
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def create_drop_root() -> tuple[tk.Tk, bool]:
@@ -26,6 +29,9 @@ def create_drop_root() -> tuple[tk.Tk, bool]:
                 # TkinterDnD creates Tk before requiring its native extension.
                 # Retain that initialized root when tkdnd cannot be loaded.
                 self.drop_available = False
+                _LOGGER.debug(
+                    "Native drag-and-drop support could not load.", exc_info=True
+                )
 
     root = OptionalDropRoot()
     return root, root.drop_available
