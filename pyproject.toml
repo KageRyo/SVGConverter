@@ -39,6 +39,7 @@ dev = [
   "twine>=6.0",
 ]
 vectorize = ["vtracer>=0.6.15,<1.0"]
+gui = ["tkinterdnd2>=0.4.3,<0.4.4"]
 
 [project.urls]
 Homepage = "https://github.com/KageRyo/SVGConverter"
