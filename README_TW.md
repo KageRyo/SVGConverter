@@ -285,6 +285,10 @@ svgconverter-gui
 Windows 執行檔不會開啟主控台視窗，自動化流程應檢查結束代碼與輸出檔案；需要終端輸出時，
 請使用 Python CLI。
 
+Linux 與 macOS 使用者請使用上述 Python 安裝方式。目前暫不提供這兩個系統的公開獨立
+執行檔；[原生套件評估說明](docs/native-distributions.md)記錄評估平台、短期 CI artifacts，
+以及仍待處理的執行環境與簽章限制。
+
 ## 貢獻與授權
 
 本機檢查與提交格式請見 [CONTRIBUTING.md](CONTRIBUTING.md)。本專案採用 [MIT License](LICENSE)。

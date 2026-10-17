@@ -321,6 +321,11 @@ with `--cli`, for example:
 The Windows build has no console window, so automation should check its exit code
 and generated files; use the Python CLI when terminal output is needed.
 
+Linux and macOS users should use the Python installation above. Public standalone
+assets for these systems are deferred; the [native distribution evaluation](docs/native-distributions.md)
+documents the tested targets, temporary CI artifacts and remaining runtime/signing
+limitations.
+
 ## Contributing and license
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and commit conventions.
