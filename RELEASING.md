@@ -49,3 +49,9 @@ v1.8.1 artifact; inspect the generated artifact size when reviewing a release.
 Before tagging a desktop release, download the
 Windows CI artifact and manually verify file/folder selection, progress,
 cancellation, and language switching on a clean Windows machine.
+
+Linux/macOS standalone assets are currently a no-go for public releases. The
+separate [native evaluation workflow](.github/workflows/native-distributions.yml)
+retains temporary artifacts for seven days and is not a publishing job. See the
+[distribution decision and promotion criteria](docs/native-distributions.md) before
+considering new release assets.

@@ -1,0 +1,102 @@
+name: Evaluate native desktop distributions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "main.py"
+      - "pyproject.toml"
+      - ".github/scripts/*native*"
+      - ".github/workflows/native-distributions.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "main.py"
+      - "pyproject.toml"
+      - ".github/scripts/*native*"
+      - ".github/workflows/native-distributions.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    name: Evaluate ${{ matrix.platform }} ${{ matrix.architecture }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            runner: ubuntu-24.04
+            architecture: x64
+            executable: dist/SVGConverter/SVGConverter
+            bundle: SVGConverter
+          - platform: macos
+            runner: macos-15
+            architecture: arm64
+            executable: dist/SVGConverter.app/Contents/MacOS/SVGConverter
+            bundle: SVGConverter.app
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.13"
+          architecture: ${{ matrix.architecture }}
+          cache: pip
+      - name: Install Linux display prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y xvfb xauth python3-tk libx11-6 libxext6 libxrender1 libxft2
+      - name: Install in an isolated native build environment
+        run: |
+          python -m venv "$RUNNER_TEMP/svgconverter-native-build"
+          native_python="$RUNNER_TEMP/svgconverter-native-build/bin/python"
+          "$native_python" -m pip install --upgrade pip
+          "$native_python" -m pip install ".[vectorize]" pyinstaller
+          echo "NATIVE_PYTHON=$native_python" >> "$GITHUB_ENV"
+          "$native_python" -m pip freeze
+      - name: Smoke test installed source application
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a "$NATIVE_PYTHON" .github/scripts/smoke-native-distribution.py --source
+          else
+            "$NATIVE_PYTHON" .github/scripts/smoke-native-distribution.py --source
+          fi
+      - name: Build an evaluation bundle
+        run: |
+          native_options=()
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            native_options+=(--target-architecture arm64 --osx-bundle-identifier com.kageryo.svgconverter.evaluation)
+          fi
+          "$NATIVE_PYTHON" -m PyInstaller --noconfirm --clean --onedir --windowed \
+            --name SVGConverter --paths src --collect-data svgconverter.resources \
+            --collect-all vtracer "${native_options[@]}" main.py
+          file "${{ matrix.executable }}"
+          du -sk "dist/${{ matrix.bundle }}"
+      - name: Smoke test packaged conversions and GUI startup
+        run: |
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a "$NATIVE_PYTHON" .github/scripts/smoke-native-distribution.py --executable "${{ matrix.executable }}"
+          else
+            "$NATIVE_PYTHON" .github/scripts/smoke-native-distribution.py --executable "${{ matrix.executable }}"
+          fi
+      - name: Archive the evaluated bundle
+        run: >
+          tar -czf "dist/SVGConverter-evaluation-${{ matrix.platform }}-${{ matrix.architecture }}.tar.gz"
+          -C dist "${{ matrix.bundle }}"
+      - name: Upload temporary evaluation artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-evaluation-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: dist/SVGConverter-evaluation-*.tar.gz
+          retention-days: 7
+          compression-level: 0
+          if-no-files-found: error
