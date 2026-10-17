@@ -30,6 +30,7 @@ from .models import (
     EmbedOptions,
     VectorizeOptions,
 )
+from .presets import VECTORIZE_PRESETS, vectorize_preset
 
 __all__ = [
     "BatchResult",
@@ -48,10 +49,12 @@ __all__ = [
     "UnsupportedImageError",
     "VectorizationDependencyError",
     "VectorizeOptions",
+    "VECTORIZE_PRESETS",
     "convert_directory",
     "convert_file",
     "convert_file_with_metrics",
     "convert_paths",
+    "vectorize_preset",
 ]
 
 __version__ = "1.8.2"

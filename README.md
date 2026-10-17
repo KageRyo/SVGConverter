@@ -170,6 +170,34 @@ In a batch, an unsupported animated conversion is reported as a per-file failure
 and remaining images continue; the CLI returns exit code 1 and the GUI shows the
 failure details. Animation playback depends on the SVG viewer.
 
+### Vectorize presets
+
+Choose a starting point for VTracer, then override individual controls if needed:
+
+```bash
+svgconverter logo.png --mode vectorize --vectorize-preset logo
+svgconverter icon.png --mode vectorize --vectorize-preset icon --vectorize-curve-mode spline --filter-speckle 0
+```
+
+The same names and descriptions appear in the GUI's Vectorize preset selector.
+Selecting a preset fills the advanced fields; you can edit them before converting.
+Changing the language or switching modes keeps those edits. Selecting another
+preset replaces the tracing fields with that preset's values.
+
+| Preset | Color / hierarchy / curves | Speckle / color bits / layer difference / path decimals | Intended use and trade-off |
+| --- | --- | --- | --- |
+| `default` | color / stacked / spline | unset / unset / unset / unset | Existing behavior; try mixed image types first |
+| `logo` | color / stacked / spline | 4 / 8 / 16 / 3 | Smooth colored logos; retains fine color detail but can remove tiny regions |
+| `icon` | color / cutout / polygon | 2 / 8 / 8 / 2 | Angular icons with sharp corners; curves can look polygonal |
+| `line-art` | binary / stacked / spline | 2 / unset / unset / 3 | High-contrast black-and-white drawings; discards color and tiny speckles |
+| `illustration` | color / stacked / spline | 4 / 6 / 16 / 3 | Smooth illustrations; merges similar colors for simpler paths |
+
+Unset numeric settings use VTracer's defaults. `default` is exactly
+`VectorizeOptions()` and is used when no preset is selected. Explicit CLI options
+override a preset, including zero values and choices equal to the usual defaults.
+Tracing quality depends on the input; these presets do not promise exact shape
+recreation or smaller files. Inspect the result before relying on it.
+
 ## Python API
 
 ```python
@@ -180,10 +208,17 @@ from svgconverter import (
     convert_file,
     convert_file_with_metrics,
     convert_paths,
+    vectorize_preset,
 )
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
+convert_file(
+    "icon.png",
+    "icon.svg",
+    mode="vectorize",
+    vectorize_options=vectorize_preset("icon", curve_mode="spline", filter_speckle=0),
+)
 convert_file("workspace/image.png", allowed_root="workspace")
 
 converter = SVGConverter(overwrite=True)
@@ -216,6 +251,10 @@ uses the original raster bytes. `convert_file_with_metrics()` and
 Use `progress_callback` for each processed item; return `True` from
 `should_cancel` to stop cleanly before the next item. The result then has
 `cancelled=True`.
+
+`vectorize_preset(name, **overrides)` returns a `VectorizeOptions` object. Override
+names are its field names; `None` resets an optional numeric field to the backend
+default. Unknown preset names raise `ValueError` with the supported names.
 
 Without `overwrite=True`, a completed SVG is published with an atomic hard link
 so concurrent converters cannot replace each other's output. A collision raises

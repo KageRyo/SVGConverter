@@ -28,6 +28,7 @@ from svgconverter.gui import (
     format_result_metrics,
     result_status_key,
 )
+from svgconverter.i18n import load_translations
 
 
 class FakeVar:
@@ -529,6 +530,83 @@ def test_build_conversion_options_maps_vectorize_mode_controls() -> None:
 def test_build_vectorize_options_rejects_unknown_choice() -> None:
     with pytest.raises(ValueError, match="Color mode must be one of"):
         build_vectorize_options(color_mode="posterize")
+
+
+def preset_app() -> SVGConverterApp:
+    app = fake_app_for_options(
+        mode_var="vectorize",
+        output_dir_var="",
+        overwrite_var=False,
+        recursive_var=False,
+        vectorize_preset_var="icon",
+        preset_description_var="",
+        color_mode_var="color",
+        hierarchical_var="stacked",
+        curve_mode_var="spline",
+        filter_speckle_var="",
+        color_precision_var="",
+        layer_difference_var="",
+        path_precision_var="",
+    )
+    app.translations = load_translations()
+    app.locale = "en_US"
+    return app
+
+
+def test_gui_preset_fills_fields_and_manual_changes_take_precedence() -> None:
+    app = preset_app()
+
+    app._apply_vectorize_preset()
+
+    assert app._build_conversion_options().vectorize_options == VectorizeOptions(
+        hierarchical="cutout",
+        curve_mode="polygon",
+        filter_speckle=2,
+        color_precision=8,
+        layer_difference=8,
+        path_precision=2,
+    )
+    app.hierarchical_var.set("stacked")
+    app.curve_mode_var.set("spline")
+    app.filter_speckle_var.set("0")
+
+    assert app._build_conversion_options().vectorize_options == VectorizeOptions(
+        filter_speckle=0,
+        color_precision=8,
+        layer_difference=8,
+        path_precision=2,
+    )
+
+
+def test_gui_default_preset_clears_previous_preset_fields() -> None:
+    app = preset_app()
+    app._apply_vectorize_preset()
+    app.vectorize_preset_var.set("default")
+
+    app._apply_vectorize_preset()
+
+    assert app._build_conversion_options().vectorize_options == VectorizeOptions()
+    assert app.filter_speckle_var.get() == ""
+    assert app.color_precision_var.get() == ""
+    assert app.layer_difference_var.get() == ""
+    assert app.path_precision_var.get() == ""
+
+
+@pytest.mark.parametrize("locale", ["en_US", "zh_TW", "ja_JP"])
+def test_gui_refreshes_localized_preset_description_without_resetting_manual_options(
+    locale: str,
+) -> None:
+    app = preset_app()
+    app._apply_vectorize_preset()
+    app.filter_speckle_var.set("0")
+    before = app._build_conversion_options()
+    app.locale = locale
+
+    app._refresh_preset_description()
+
+    assert app._build_conversion_options() == before
+    assert app.preset_description_var.get() == app._text["preset_icon_description"]
+    assert app.preset_description_var.get()
 
 
 def test_run_conversion_forwards_the_settings_snapshot(
