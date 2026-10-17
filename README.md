@@ -131,6 +131,19 @@ directory. Existing symlinks that resolve outside the boundary are rejected.
 Without this option, the local CLI keeps its normal ability to access
 user-selected filesystem locations.
 
+### JSON reports for automation
+
+Add `--json` to single-file or batch commands to emit one structured report:
+
+```bash
+svgconverter ./images --output-dir ./svg-output --json > report.json
+```
+
+Reports include per-file paths, failures, skips, sizes, totals, and cancellation
+state. Exit status remains `0` for success/skips and `1` for conversion errors;
+invalid arguments use stderr and exit `2`. See the [versioned JSON schema and
+shell automation example](docs/json-reports.md) for compatibility and error rules.
+
 ### Embed optimization
 
 Embed mode preserves the source raster bytes by default. Opt in to resizing or
