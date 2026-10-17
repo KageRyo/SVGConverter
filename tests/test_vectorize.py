@@ -5,7 +5,13 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageDraw
 
-from svgconverter import SVGConverter, VectorizeOptions, convert_directory, convert_file
+from svgconverter import (
+    SVGConverter,
+    VectorizeOptions,
+    convert_directory,
+    convert_file,
+    vectorize_preset,
+)
 from svgconverter.cli import main
 
 pytest.importorskip("vtracer")
@@ -97,3 +103,18 @@ def test_cli_vectorize_mode_creates_paths(
     assert exit_code == 0
     assert "Converted:" in capsys.readouterr().out
     assert_is_vector_svg(destination)
+
+
+@pytest.mark.parametrize(
+    "name", ["default", "logo", "icon", "line-art", "illustration"]
+)
+def test_all_presets_trace_valid_svg_with_the_native_backend(
+    tmp_path: Path, name: str
+) -> None:
+    source = create_line_art(tmp_path / "drawing.png")
+
+    output = convert_file(
+        source, mode="vectorize", vectorize_options=vectorize_preset(name)
+    )
+
+    assert_is_vector_svg(output)

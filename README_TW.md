@@ -156,6 +156,30 @@ svgconverter illustration.png --png-compress-level 9 --optimize-png
 不會改動原始 bytes。批次轉換會將不支援的動畫處理列為個別檔案失敗，並繼續處理其餘影像；
 CLI 會回傳結束代碼 1，GUI 會顯示失敗詳情。動畫能否播放仍取決於 SVG 檢視器。
 
+### Vectorize 預設組合
+
+先選擇適合影像的 VTracer 起點，再依需要覆寫個別選項：
+
+```bash
+svgconverter logo.png --mode vectorize --vectorize-preset logo
+svgconverter icon.png --mode vectorize --vectorize-preset icon --vectorize-curve-mode spline --filter-speckle 0
+```
+
+GUI 的向量化預設組合選單提供相同名稱與對應說明。選擇後會填入進階設定欄位，轉換前仍可手動
+修改；切換語言或轉換模式會保留修改。重新選擇預設組合時，會以該組合取代描繪欄位的值。
+
+| 預設組合 | 色彩／階層／曲線 | 小區域／色彩位元／圖層差異／路徑小數位數 | 適用情境與取捨 |
+| --- | --- | --- | --- |
+| `default` | color / stacked / spline | 未設定／未設定／未設定／未設定 | 沿用既有行為，可先試用於混合類型影像 |
+| `logo` | color / stacked / spline | 4 / 8 / 16 / 3 | 平滑彩色 Logo；保留較多色彩細節，但可能移除微小區域 |
+| `icon` | color / cutout / polygon | 2 / 8 / 8 / 2 | 稜角分明的 Icon；保留銳利角落，曲線可能呈現折線 |
+| `line-art` | binary / stacked / spline | 2／未設定／未設定／3 | 高對比黑白線稿；捨棄色彩並移除微小雜點 |
+| `illustration` | color / stacked / spline | 4 / 6 / 16 / 3 | 平滑彩色插圖；合併相近顏色以簡化路徑 |
+
+未設定的數值使用 VTracer 預設值。`default` 等同 `VectorizeOptions()`，未指定組合時沿用此行為。
+明確指定的 CLI 選項會覆寫組合，包括 0 及與原本預設相同的選項值。描繪品質取決於輸入特性；
+這些組合不保證完整重現形狀或縮小檔案，使用結果前請先檢視。
+
 ## Python API
 
 ```python
@@ -166,10 +190,17 @@ from svgconverter import (
     convert_file,
     convert_file_with_metrics,
     convert_paths,
+    vectorize_preset,
 )
 
 convert_file("image.png", "image.svg")
 convert_file("logo.png", "logo.svg", mode="vectorize")
+convert_file(
+    "icon.png",
+    "icon.svg",
+    mode="vectorize",
+    vectorize_options=vectorize_preset("icon", curve_mode="spline", filter_speckle=0),
+)
 convert_file("workspace/image.png", allowed_root="workspace")
 
 converter = SVGConverter(overwrite=True)
@@ -199,6 +230,10 @@ embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `Bat
 嵌入點陣與 SVG 的 byte 大小。
 可使用 `progress_callback` 取得每個已處理項目；讓 `should_cancel` 回傳 `True`，即可在下一個檔案
 開始前安全停止，結果的 `cancelled` 會是 `True`。
+
+`vectorize_preset(name, **overrides)` 會回傳 `VectorizeOptions`。覆寫參數使用該資料類別的欄位名稱；
+可將選用數值欄位設為 `None`，恢復使用後端預設值。未知的組合名稱會拋出 `ValueError`，
+訊息中會列出支援名稱。
 
 未指定 `overwrite=True` 時，完成的 SVG 會以原子性的 hard link 發布，避免並行轉換互相覆寫。
 若發生衝突，會拋出 `OutputExistsError`，批次轉換則記錄為逐檔失敗。不支援 hard link 時，

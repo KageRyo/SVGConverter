@@ -31,6 +31,7 @@ from .i18n import (
     locale_for_display_name,
     translation_for,
 )
+from .presets import VECTORIZE_PRESETS, preset_description, vectorize_preset
 
 _POLL_INTERVAL_MS = 75
 _IMAGE_FILE_TYPES = [
@@ -250,6 +251,8 @@ class SVGConverterApp:
         self.optimize_png_var = tk.BooleanVar(value=False)
 
         self.color_mode_var = tk.StringVar(value="color")
+        self.vectorize_preset_var = tk.StringVar(value="default")
+        self.preset_description_var = tk.StringVar()
         self.hierarchical_var = tk.StringVar(value="stacked")
         self.curve_mode_var = tk.StringVar(value="spline")
         self.filter_speckle_var = tk.StringVar()
@@ -301,6 +304,29 @@ class SVGConverterApp:
         self.mode_hint = ttk.Label(self.mode_frame, wraplength=500)
         self.mode_hint.grid(
             row=1, column=0, columnspan=3, padx=10, pady=(0, 8), sticky=tk.W
+        )
+        self.preset_frame = ttk.Frame(self.mode_frame)
+        self.preset_frame.grid(
+            row=2, column=0, columnspan=3, padx=10, pady=(0, 8), sticky=tk.EW
+        )
+        self.preset_label = ttk.Label(self.preset_frame)
+        self.preset_label.grid(row=0, column=0, padx=(0, 6), sticky=tk.W)
+        self.preset_menu = ttk.Combobox(
+            self.preset_frame,
+            textvariable=self.vectorize_preset_var,
+            values=tuple(VECTORIZE_PRESETS),
+            state="readonly",
+            width=14,
+        )
+        self.preset_menu.grid(row=0, column=1, sticky=tk.W)
+        self.preset_menu.bind("<<ComboboxSelected>>", self._apply_vectorize_preset)
+        self.preset_description = ttk.Label(
+            self.preset_frame,
+            textvariable=self.preset_description_var,
+            wraplength=500,
+        )
+        self.preset_description.grid(
+            row=1, column=0, columnspan=2, pady=(4, 0), sticky=tk.W
         )
 
         self.output_frame = ttk.LabelFrame(controls)
@@ -435,6 +461,7 @@ class SVGConverterApp:
             row=7, column=0, columnspan=2, padx=10, pady=(0, 8), sticky=tk.W
         )
         self._vectorize_choice_widgets = [
+            self.preset_menu,
             self.color_mode_menu,
             self.hierarchical_menu,
             self.curve_mode_menu,
@@ -576,6 +603,8 @@ class SVGConverterApp:
         self.optimize_png_checkbutton.config(text=text["optimize_png"])
         self.embed_options_hint.config(text=text["embed_options_hint"])
         self.vectorize_options_frame.config(text=text["vectorize_options"])
+        self.preset_label.config(text=text["vectorize_preset"])
+        self._refresh_preset_description()
         self.color_mode_label.config(text=text["color_mode"])
         self.hierarchical_label.config(text=text["hierarchical"])
         self.curve_mode_label.config(text=text["curve_mode"])
@@ -607,6 +636,27 @@ class SVGConverterApp:
         )
         return self._text[key]
 
+    def _apply_vectorize_preset(self, _event: object = None) -> None:
+        """Fill editable controls once; later manual changes stay authoritative."""
+
+        options = vectorize_preset(self.vectorize_preset_var.get())
+        for variable, value in (
+            (self.color_mode_var, options.color_mode),
+            (self.hierarchical_var, options.hierarchical),
+            (self.curve_mode_var, options.curve_mode),
+            (self.filter_speckle_var, options.filter_speckle),
+            (self.color_precision_var, options.color_precision),
+            (self.layer_difference_var, options.layer_difference),
+            (self.path_precision_var, options.path_precision),
+        ):
+            variable.set("" if value is None else str(value))
+        self._refresh_preset_description()
+
+    def _refresh_preset_description(self) -> None:
+        self.preset_description_var.set(
+            preset_description(self.vectorize_preset_var.get(), self._text)
+        )
+
     def toggle_advanced_settings(self) -> None:
         """Toggle visibility of the advanced conversion controls."""
 
@@ -629,9 +679,11 @@ class SVGConverterApp:
             widget.configure(state=tk.NORMAL)
         embed_enabled = self.mode_var.get() == "embed"
         if embed_enabled:
+            self.preset_frame.grid_remove()
             self.vectorize_options_frame.pack_forget()
             self.embed_options_frame.pack(fill=tk.X)
         else:
+            self.preset_frame.grid()
             self.embed_options_frame.pack_forget()
             self.vectorize_options_frame.pack(fill=tk.X)
         for widget in self._embed_widgets:

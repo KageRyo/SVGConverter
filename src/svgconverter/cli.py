@@ -19,6 +19,8 @@ from .converter import (
     convert_file_with_metrics,
     convert_paths,
 )
+from .i18n import load_translations
+from .presets import VECTORIZE_PRESETS, preset_description, vectorize_preset
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -104,22 +106,29 @@ def build_parser() -> argparse.ArgumentParser:
         help="Conversion mode: embed preserves raster pixels; vectorize traces paths",
     )
     vectorize_group = parser.add_argument_group("vectorize options")
+    text = load_translations()["en_US"]
+    vectorize_group.add_argument(
+        "--vectorize-preset",
+        choices=tuple(VECTORIZE_PRESETS),
+        default="default",
+        help="Starting point (manual options override it): "
+        + "; ".join(
+            f"{name}: {preset_description(name, text)}" for name in VECTORIZE_PRESETS
+        ),
+    )
     vectorize_group.add_argument(
         "--vectorize-color-mode",
         choices=("color", "binary"),
-        default="color",
         help="Trace colour regions or high-contrast binary artwork",
     )
     vectorize_group.add_argument(
         "--vectorize-hierarchical",
         choices=("stacked", "cutout"),
-        default="stacked",
         help="Use stacked paths or cutout regions while vectorizing",
     )
     vectorize_group.add_argument(
         "--vectorize-curve-mode",
         choices=("pixel", "polygon", "spline"),
-        default="spline",
         help="Curve-fitting strategy while vectorizing",
     )
     vectorize_group.add_argument(
@@ -297,15 +306,20 @@ def _print_json_error(
 def _vectorize_options_from_arguments(
     arguments: argparse.Namespace,
 ) -> VectorizeOptions:
-    return VectorizeOptions(
-        color_mode=arguments.vectorize_color_mode,
-        hierarchical=arguments.vectorize_hierarchical,
-        curve_mode=arguments.vectorize_curve_mode,
-        filter_speckle=arguments.filter_speckle,
-        color_precision=arguments.color_precision,
-        layer_difference=arguments.layer_difference,
-        path_precision=arguments.path_precision,
-    )
+    overrides = {
+        name: value
+        for name, value in {
+            "color_mode": arguments.vectorize_color_mode,
+            "hierarchical": arguments.vectorize_hierarchical,
+            "curve_mode": arguments.vectorize_curve_mode,
+            "filter_speckle": arguments.filter_speckle,
+            "color_precision": arguments.color_precision,
+            "layer_difference": arguments.layer_difference,
+            "path_precision": arguments.path_precision,
+        }.items()
+        if value is not None
+    }
+    return vectorize_preset(arguments.vectorize_preset, **overrides)
 
 
 def _embed_options_from_arguments(arguments: argparse.Namespace) -> EmbedOptions:
