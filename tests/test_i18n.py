@@ -17,6 +17,12 @@ def test_bundled_translations_have_all_supported_locales() -> None:
             {
                 "name",
                 "input",
+                "drop_target",
+                "drop_unavailable",
+                "drop_selected",
+                "drop_invalid",
+                "drop_rejected",
+                "selected_items",
                 "no_input_selected",
                 "selected_file",
                 "selected_files",

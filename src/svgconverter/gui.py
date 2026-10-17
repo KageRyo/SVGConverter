@@ -25,6 +25,7 @@ from .converter import (
     VectorizeOptions,
     convert_paths,
 )
+from .dragdrop import create_drop_root, normalize_drop_paths
 from .i18n import (
     DEFAULT_LOCALE,
     load_translations,
@@ -44,7 +45,7 @@ _IMAGE_FILE_TYPES = [
 ]
 _EventKind = Literal["progress", "done", "error"]
 _GuiEvent = tuple[_EventKind, ConversionProgress | BatchResult | Exception]
-_InputSelectionKind = Literal["files", "folder"]
+_InputSelectionKind = Literal["files", "folder", "mixed"]
 _VECTORIZE_COLOR_MODES = ("color", "binary")
 _VECTORIZE_HIERARCHIES = ("stacked", "cutout")
 _VECTORIZE_CURVE_MODES = ("pixel", "polygon", "spline")
@@ -213,7 +214,7 @@ class SVGConverterApp:
     """The standalone GUI application."""
 
     def __init__(self) -> None:
-        self.root = tk.Tk()
+        self.root, self._drop_available = create_drop_root()
         self.root.title("SVGConverter")
         self.root.minsize(560, 680)
         self.translations = load_translations()
@@ -280,6 +281,13 @@ class SVGConverterApp:
         self.folder_button.grid(
             row=1, column=1, padx=(4, 10), pady=(4, 10), sticky=tk.EW
         )
+        self.drop_target = ttk.Label(self.input_frame, padding=12, relief="groove")
+        self.drop_target.grid(
+            row=2, column=0, columnspan=2, padx=10, pady=(0, 10), sticky=tk.EW
+        )
+        if self._drop_available:
+            self.drop_target.drop_target_register("DND_Files")  # type: ignore[attr-defined]
+            self.drop_target.dnd_bind("<<Drop>>", self._on_drop)  # type: ignore[attr-defined]
 
         self.mode_frame = ttk.LabelFrame(controls)
         self.mode_frame.pack(fill=tk.X)
@@ -582,6 +590,9 @@ class SVGConverterApp:
     def _refresh_text(self) -> None:
         text = self._text
         self.input_frame.config(text=text["input"])
+        self.drop_target.config(
+            text=text["drop_target" if self._drop_available else "drop_unavailable"]
+        )
         self.mode_frame.config(text=text["mode"])
         self.mode_label.config(text=text["mode"])
         self.embed_mode_button.config(text=text["embed_mode"])
@@ -753,6 +764,37 @@ class SVGConverterApp:
         if files:
             self._set_selected_inputs(files, "files")
 
+    def _on_drop(self, event: object) -> str:
+        """Add dropped selections; conversion still requires the Convert action."""
+
+        if self._running:
+            return "refuse_drop"
+        try:
+            items = self.root.tk.splitlist(getattr(event, "data", ""))
+        except tk.TclError:
+            self.status_var.set(self._text["drop_invalid"])
+            return "refuse_drop"
+        accepted, rejected = normalize_drop_paths(items)
+        if accepted:
+            combined, _ = normalize_drop_paths((*self._selected_input_paths, *accepted))
+            directories = sum(Path(path).is_dir() for path in combined)
+            kind: _InputSelectionKind = (
+                "folder"
+                if directories == len(combined) == 1
+                else "mixed"
+                if directories
+                else "files"
+            )
+            self._set_selected_inputs(combined, kind)
+            self.status_var.set(self._text["drop_selected"])
+        if rejected:
+            self.status_var.set(
+                self._text["drop_rejected"].format(items="\n".join(rejected))
+            )
+        elif not accepted:
+            self.status_var.set(self._text["drop_invalid"])
+        return "copy" if accepted else "refuse_drop"
+
     def select_folder(self) -> None:
         """Select a folder whose immediate supported images will be converted."""
 
@@ -777,6 +819,10 @@ class SVGConverterApp:
         if self._selected_input_kind == "folder":
             folder = Path(self._selected_input_paths[0]).name
             return self._text["selected_folder"].format(folder=folder)
+        if self._selected_input_kind == "mixed":
+            return self._text["selected_items"].format(
+                count=len(self._selected_input_paths)
+            )
         if len(self._selected_input_paths) == 1:
             file_name = Path(self._selected_input_paths[0]).name
             return self._text["selected_file"].format(file=file_name)

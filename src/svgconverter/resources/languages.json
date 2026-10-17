@@ -70,7 +70,13 @@
     "result_no_output": "尚未產生輸出檔案。",
     "result_failures": "失敗檔案：\n{details}",
     "open_output_folder": "開啟輸出資料夾",
-    "convert_more": "轉換其他圖片"
+    "convert_more": "轉換其他圖片",
+    "drop_target": "拖放圖片或資料夾至此（不會立即轉換）",
+    "drop_unavailable": "目前環境無法使用拖放，請使用選擇檔案或資料夾按鈕。",
+    "drop_selected": "已加入拖放項目，確認設定後按轉換。",
+    "drop_invalid": "無法讀取拖放項目，請使用選擇按鈕。",
+    "drop_rejected": "已略過不支援或無法存取的項目：\n{items}",
+    "selected_items": "已選擇 {count} 個項目（檔案／資料夾）"
   },
   "en_US": {
     "name": "English",
@@ -143,7 +149,13 @@
     "result_no_output": "No output files were created.",
     "result_failures": "Failed files:\n{details}",
     "open_output_folder": "Open output folder",
-    "convert_more": "Convert more images"
+    "convert_more": "Convert more images",
+    "drop_target": "Drop images or folders here (selects only)",
+    "drop_unavailable": "Drag and drop is unavailable in this environment. Use Select Files or Select Folder.",
+    "drop_selected": "Dropped items selected. Configure settings, then click Convert.",
+    "drop_invalid": "Cannot read this drop. Use the selection buttons.",
+    "drop_rejected": "Ignored unsupported or unavailable items:\n{items}",
+    "selected_items": "{count} items selected (files/folders)"
   },
   "ja_JP": {
     "name": "日本語",
@@ -216,6 +228,12 @@
     "result_no_output": "出力ファイルは作成されませんでした。",
     "result_failures": "失敗したファイル：\n{details}",
     "open_output_folder": "出力フォルダを開く",
-    "convert_more": "別の画像を変換"
+    "convert_more": "別の画像を変換",
+    "drop_target": "画像やフォルダーをここにドロップ（選択のみ）",
+    "drop_unavailable": "この環境ではドロップを利用できません。ファイルやフォルダーの選択ボタンを使ってください。",
+    "drop_selected": "項目を追加しました。設定を確認して変換してください。",
+    "drop_invalid": "ドロップを読み取れません。選択ボタンを使ってください。",
+    "drop_rejected": "未対応またはアクセスできない項目をスキップしました：\n{items}",
+    "selected_items": "{count} 件の項目を選択（ファイル／フォルダー）"
   }
 }
