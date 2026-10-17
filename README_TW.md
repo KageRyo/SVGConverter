@@ -289,6 +289,30 @@ python -m pip install --upgrade "svgconverter[gui]"
 透過 Python 安裝時，和命令列與 Python API 一樣，`vectorize` 模式需要安裝選用的
 `vectorize` extra。
 
+### 轉換前比較預覽
+
+安裝選用的預覽 renderer 後，選取**單一影像檔案**並按下**預覽所選影像**。
+若要預覽向量描圖，請同時安裝兩個 extra：
+
+```bash
+python -m pip install "svgconverter[preview]"
+python -m pip install "svgconverter[preview,vectorize]"
+```
+
+比較視窗會並排顯示來源與 SVG 渲染結果，附上實際尺寸及來源／SVG byte 大小。
+縮圖每邊最多 360 像素，顯示的 byte 大小則是完整轉換結果。
+預覽會擷取按下按鈕當下的 Embed 或 Vectorize 設定，在背景執行；調整設定後須再次按下預覽。
+
+預覽只寫入私有暫存資料夾，顯示比較前就會清除，不使用最終輸出路徑或覆寫設定。
+取消會在目前處理階段完成後停止；關閉應用程式會等待背景工作清理完成。
+缺少 renderer 或 VTracer 時會顯示安裝指令。Windows 獨立版會包含預覽 renderer。
+
+動態影像以代表性的第一幀顯示，不預覽動畫時間資訊；一般轉換政策仍適用。
+來源縮圖會遵循 EXIF 方向。由於 resvg 不處理嵌入 JPEG 的 EXIF 方向，也無法解碼所有
+支援的點陣格式，Embed 預覽會將**轉換後實際嵌入的點陣資料**在記憶體轉成 PNG 再渲染。
+此步驟保留選定的縮放與壓縮結果，不修改產生的 SVG 或回報的 byte 大小。
+不同 SVG 檢視器的細節呈現仍可能略有差異。
+
 支援此功能的 release 中，Windows 使用者可從 GitHub Release 頁面下載獨立的
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset，內含 VTracer 後端，可直接使用 Embed
 與 Vectorize，不需要自行安裝 Python。自動化轉換時，可在 CLI 選項前加上 `--cli`，例如：

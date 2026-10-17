@@ -7,11 +7,14 @@ import subprocess
 import sys
 import tkinter as tk
 from dataclasses import dataclass
+from io import BytesIO
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Thread
 from tkinter import filedialog, messagebox, ttk
 from typing import Literal, cast
+
+from PIL import Image, ImageTk
 
 from .converter import (
     BatchResult,
@@ -19,6 +22,7 @@ from .converter import (
     ConversionProgress,
     EmbedOptions,
     SVGConverterError,
+    VectorizationDependencyError,
     VectorizeColorMode,
     VectorizeCurveMode,
     VectorizeHierarchy,
@@ -33,6 +37,12 @@ from .i18n import (
     translation_for,
 )
 from .presets import VECTORIZE_PRESETS, preset_description, vectorize_preset
+from .preview import (
+    PreviewCancelled,
+    PreviewDependencyError,
+    PreviewResult,
+    create_preview,
+)
 
 _POLL_INTERVAL_MS = 75
 _IMAGE_FILE_TYPES = [
@@ -43,8 +53,11 @@ _IMAGE_FILE_TYPES = [
     ),
     ("All files", "*.*"),
 ]
-_EventKind = Literal["progress", "done", "error"]
-_GuiEvent = tuple[_EventKind, ConversionProgress | BatchResult | Exception]
+_EventKind = Literal[
+    "progress", "done", "error", "preview_done", "preview_error", "preview_cancelled"
+]
+_GuiPayload = ConversionProgress | BatchResult | PreviewResult | Exception
+_GuiEvent = tuple[_EventKind, _GuiPayload]
 _InputSelectionKind = Literal["files", "folder", "mixed"]
 _VECTORIZE_COLOR_MODES = ("color", "binary")
 _VECTORIZE_HIERARCHIES = ("stacked", "cutout")
@@ -223,6 +236,8 @@ class SVGConverterApp:
         self._cancel_event = Event()
         self._worker: Thread | None = None
         self._running = False
+        self._preview_active = False
+        self._closing = False
         self._selected_input_paths: tuple[str, ...] = ()
         self._selected_input_kind: _InputSelectionKind | None = None
         self._last_result: BatchResult | None = None
@@ -487,6 +502,10 @@ class SVGConverterApp:
             actions, command=self.convert_selected, state=tk.DISABLED
         )
         self.convert_button.pack(fill=tk.X)
+        self.preview_button = ttk.Button(
+            actions, command=self.preview_selected, state=tk.DISABLED
+        )
+        self.preview_button.pack(fill=tk.X, pady=(8, 0))
         self.cancel_button = ttk.Button(
             actions, command=self.cancel_conversion, state=tk.DISABLED
         )
@@ -552,6 +571,7 @@ class SVGConverterApp:
             command=self.change_language,
         )
         self.language_menu.pack(fill=tk.X, pady=(16, 0))
+        self.root.protocol("WM_DELETE_WINDOW", self.close)
         self._refresh_text()
 
     @staticmethod
@@ -627,6 +647,7 @@ class SVGConverterApp:
         self.files_button.config(text=text["select_files"])
         self.folder_button.config(text=text["select_folder"])
         self.convert_button.config(text=text["convert"])
+        self.preview_button.config(text=text["preview"])
         self.cancel_button.config(text=text["cancel"])
         self.open_output_button.config(text=text["open_output_folder"])
         self.convert_more_button.config(text=text["convert_more"])
@@ -713,6 +734,11 @@ class SVGConverterApp:
         self.convert_button.configure(
             state=tk.NORMAL if self._selected_input_paths else tk.DISABLED
         )
+        can_preview = (
+            self._selected_input_kind == "files"
+            and len(self._selected_input_paths) == 1
+        )
+        self.preview_button.configure(state=tk.NORMAL if can_preview else tk.DISABLED)
 
     def _build_conversion_options(self) -> GuiConversionOptions:
         """Validate visible controls and return an immutable conversion snapshot."""
@@ -863,6 +889,8 @@ class SVGConverterApp:
             self.output_dir_var.set(folder)
 
     def _start_conversion(self, input_paths: tuple[str, ...] | list[str]) -> None:
+        if self._running:
+            return
         try:
             options = self._build_conversion_options()
         except ValueError as error:
@@ -876,7 +904,7 @@ class SVGConverterApp:
         self._hide_result_feedback()
         self._last_conversion_options = options
         self._set_running(True)
-        self.progress.configure(value=0, maximum=1)
+        self.progress.configure(mode="determinate", value=0, maximum=1)
         self.status_var.set(self._text["starting"])
         self._worker = Thread(
             target=self._run_conversion,
@@ -925,7 +953,135 @@ class SVGConverterApp:
     def _report_progress(self, progress: ConversionProgress) -> None:
         self._events.put(("progress", progress))
 
+    def preview_selected(self) -> None:
+        """Preview one file using an immutable snapshot of the visible settings."""
+
+        if self._running:
+            return
+        if self._selected_input_kind != "files" or len(self._selected_input_paths) != 1:
+            self.status_var.set(self._text["preview_select_one"])
+            return
+        try:
+            options = self._build_conversion_options()
+        except ValueError as error:
+            self.status_var.set(self._text["invalid_options"])
+            messagebox.showerror(
+                self._text["invalid_options_title"], str(error), parent=self.root
+            )
+            return
+        self._cancel_event.clear()
+        self._preview_active = True
+        self._set_running(True)
+        self.progress.configure(mode="indeterminate")
+        self.progress.start()
+        self.status_var.set(self._text["preview_starting"])
+        self._worker = Thread(
+            target=self._run_preview,
+            args=(self._selected_input_paths[0], options),
+            daemon=True,
+        )
+        self._worker.start()
+        self.root.after(_POLL_INTERVAL_MS, self._poll_events)
+
+    def _run_preview(self, input_path: str, options: GuiConversionOptions) -> None:
+        try:
+            result = create_preview(
+                input_path,
+                mode=options.mode,
+                embed_options=options.embed_options,
+                vectorize_options=options.vectorize_options,
+                should_cancel=self._cancel_event.is_set,
+            )
+        except PreviewCancelled as error:
+            self._events.put(("preview_cancelled", error))
+        except Exception as error:
+            self._events.put(("preview_error", error))
+        else:
+            self._events.put(("preview_done", result))
+
+    def _show_preview_result(self, result: _GuiPayload) -> None:
+        if not isinstance(result, PreviewResult):
+            return
+        self._preview_active = False
+        self._set_running(False)
+        if self._cancel_event.is_set():
+            self.status_var.set(self._text["preview_cancelled"])
+            return
+        self.status_var.set(self._text["preview_ready"])
+        self._open_preview_window(result)
+
+    def _show_preview_error(self, error: _GuiPayload) -> None:
+        self._preview_active = False
+        self._set_running(False)
+        if isinstance(error, PreviewCancelled) or self._cancel_event.is_set():
+            self.status_var.set(self._text["preview_cancelled"])
+            return
+        if isinstance(error, PreviewDependencyError):
+            message = self._text["preview_missing_renderer"]
+        elif isinstance(error, Exception) and isinstance(
+            error.__cause__, VectorizationDependencyError
+        ):
+            message = self._text["preview_missing_vectorize"]
+        else:
+            message = self._text["preview_error"].format(error=error)
+        self.status_var.set(message)
+        messagebox.showerror(self._text["preview"], message, parent=self.root)
+
+    def _open_preview_window(self, result: PreviewResult) -> None:
+        window = tk.Toplevel(self.root)
+        window.title(
+            f"{self._text['preview']}: {result.input_path.name} ({result.mode})"
+        )
+        content = ttk.Frame(window, padding=16)
+        content.pack(fill=tk.BOTH, expand=True)
+        for column in range(2):
+            content.columnconfigure(column, weight=1)
+        self._add_preview_image(
+            content,
+            0,
+            result.source_png,
+            self._text["preview_source"],
+            result.source_size,
+            result.input_bytes,
+        )
+        self._add_preview_image(
+            content,
+            1,
+            result.rendered_png,
+            self._text["preview_output"],
+            result.output_size,
+            result.svg_bytes,
+        )
+        note = self._text["preview_snapshot"]
+        if result.animated:
+            note += "\n" + self._text["preview_animation"]
+        ttk.Label(content, text=note, wraplength=720).grid(
+            row=3, column=0, columnspan=2, pady=(12, 0), sticky=tk.W
+        )
+
+    def _add_preview_image(
+        self,
+        parent: ttk.Frame,
+        column: int,
+        png: bytes,
+        title: str,
+        size: tuple[int, int],
+        byte_count: int,
+    ) -> None:
+        ttk.Label(parent, text=title).grid(row=0, column=column, padx=8, pady=(0, 8))
+        with Image.open(BytesIO(png)) as image:
+            photo = ImageTk.PhotoImage(image, master=parent)
+        label = ttk.Label(parent, image=photo, anchor=tk.CENTER)
+        label.preview_image = photo  # type: ignore[attr-defined]
+        label.grid(row=1, column=column, padx=8, sticky=tk.NSEW)
+        details = self._text["preview_dimensions"].format(
+            width=size[0], height=size[1], size=format_byte_size(byte_count)
+        )
+        ttk.Label(parent, text=details).grid(row=2, column=column, padx=8, pady=(8, 0))
+
     def _poll_events(self) -> None:
+        if self._closing:
+            return
         try:
             while True:
                 kind, payload = self._events.get_nowait()
@@ -933,6 +1089,10 @@ class SVGConverterApp:
                     self._show_progress(payload)
                 elif kind == "done":
                     self._show_result(payload)
+                elif kind == "preview_done":
+                    self._show_preview_result(payload)
+                elif kind in ("preview_error", "preview_cancelled"):
+                    self._show_preview_error(payload)
                 else:
                     self._show_error(payload)
         except Empty:
@@ -941,9 +1101,7 @@ class SVGConverterApp:
         if self._worker is not None:
             self.root.after(_POLL_INTERVAL_MS, self._poll_events)
 
-    def _show_progress(
-        self, progress: ConversionProgress | BatchResult | Exception
-    ) -> None:
+    def _show_progress(self, progress: _GuiPayload) -> None:
         if not isinstance(progress, ConversionProgress):
             return
         self.progress.configure(
@@ -960,9 +1118,7 @@ class SVGConverterApp:
             )
         )
 
-    def _show_result(
-        self, result: ConversionProgress | BatchResult | Exception
-    ) -> None:
+    def _show_result(self, result: _GuiPayload) -> None:
         if not isinstance(result, BatchResult):
             return
         self._set_running(False)
@@ -976,7 +1132,7 @@ class SVGConverterApp:
         )
         self.status_var.set(message)
 
-    def _show_error(self, error: ConversionProgress | BatchResult | Exception) -> None:
+    def _show_error(self, error: _GuiPayload) -> None:
         self._set_running(False)
         self._last_result = None
         self._result_output_folder = None
@@ -1072,12 +1228,20 @@ class SVGConverterApp:
         self.folder_button.config(state=state)
         can_convert = not running and bool(self._selected_input_paths)
         self.convert_button.config(state=tk.NORMAL if can_convert else tk.DISABLED)
+        self.preview_button.config(state=tk.DISABLED)
         self.cancel_button.config(state=tk.NORMAL if running else tk.DISABLED)
+        self.convert_more_button.config(state=state)
+        self.open_output_button.config(
+            state=tk.NORMAL
+            if not running and self._result_output_folder
+            else tk.DISABLED
+        )
         if running:
             for widget in self._settings_widgets:
                 widget.configure(state=tk.DISABLED)
         else:
             self._worker = None
+            self.progress.stop()
             self._update_option_state()
 
     def cancel_conversion(self) -> None:
@@ -1085,7 +1249,21 @@ class SVGConverterApp:
 
         self._cancel_event.set()
         self.cancel_button.config(state=tk.DISABLED)
-        self.status_var.set(self._text["cancelling"])
+        key = "preview_cancelling" if self._preview_active else "cancelling"
+        self.status_var.set(self._text[key])
+
+    def close(self) -> None:
+        """Wait asynchronously for worker cleanup before destroying Tk."""
+
+        self._closing = True
+        self._cancel_event.set()
+        self._finish_close()
+
+    def _finish_close(self) -> None:
+        if self._worker is not None and self._worker.is_alive():
+            self.root.after(_POLL_INTERVAL_MS, self._finish_close)
+            return
+        self.root.destroy()
 
     def change_language(self, display_name: str | tk.StringVar) -> None:
         selected_name = (

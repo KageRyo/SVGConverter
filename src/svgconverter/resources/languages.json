@@ -76,7 +76,21 @@
     "drop_selected": "已加入拖放項目，確認設定後按轉換。",
     "drop_invalid": "無法讀取拖放項目，請使用選擇按鈕。",
     "drop_rejected": "已略過不支援或無法存取的項目：\n{items}",
-    "selected_items": "已選擇 {count} 個項目（檔案／資料夾）"
+    "selected_items": "已選擇 {count} 個項目（檔案／資料夾）",
+    "preview": "預覽所選影像",
+    "preview_select_one": "請選擇單一影像檔案以預覽。",
+    "preview_starting": "正在準備轉換預覽…",
+    "preview_ready": "預覽已就緒。調整設定後，再按預覽即可重新比較。",
+    "preview_cancelling": "正在於目前處理階段完成後取消預覽…",
+    "preview_cancelled": "已取消預覽；未儲存輸出檔案。",
+    "preview_error": "無法建立預覽：{error}",
+    "preview_missing_renderer": "預覽需要選用的 renderer。安裝指令：pip install 'svgconverter[preview]'",
+    "preview_missing_vectorize": "Vectorize 預覽需要 VTracer。安裝指令：pip install 'svgconverter[vectorize]'",
+    "preview_source": "來源影像",
+    "preview_output": "SVG 渲染結果",
+    "preview_dimensions": "{width} × {height} px · {size}",
+    "preview_snapshot": "預覽使用按下按鈕當下的設定。大小為實際來源與產生的 SVG，並非縮圖大小；不會儲存最終 SVG。",
+    "preview_animation": "動態影像以代表性的第一幀顯示；預覽不呈現動畫時間資訊。"
   },
   "en_US": {
     "name": "English",
@@ -155,7 +169,21 @@
     "drop_selected": "Dropped items selected. Configure settings, then click Convert.",
     "drop_invalid": "Cannot read this drop. Use the selection buttons.",
     "drop_rejected": "Ignored unsupported or unavailable items:\n{items}",
-    "selected_items": "{count} items selected (files/folders)"
+    "selected_items": "{count} items selected (files/folders)",
+    "preview": "Preview selected image",
+    "preview_select_one": "Select exactly one image file to preview.",
+    "preview_starting": "Preparing conversion preview…",
+    "preview_ready": "Preview ready. Change settings and click Preview to compare again.",
+    "preview_cancelling": "Cancelling preview after the current stage…",
+    "preview_cancelled": "Preview cancelled; no output was saved.",
+    "preview_error": "Could not create preview: {error}",
+    "preview_missing_renderer": "Preview requires the optional renderer. Install with: pip install 'svgconverter[preview]'",
+    "preview_missing_vectorize": "Vectorize preview requires VTracer. Install with: pip install 'svgconverter[vectorize]'",
+    "preview_source": "Source image",
+    "preview_output": "Rendered SVG",
+    "preview_dimensions": "{width} × {height} px · {size}",
+    "preview_snapshot": "Preview uses settings captured when requested. Sizes show the actual source and generated SVG, not thumbnail sizes. No final SVG is saved.",
+    "preview_animation": "Animated images are shown as a representative first frame; animation timing is not previewed."
   },
   "ja_JP": {
     "name": "日本語",
@@ -234,6 +262,20 @@
     "drop_selected": "項目を追加しました。設定を確認して変換してください。",
     "drop_invalid": "ドロップを読み取れません。選択ボタンを使ってください。",
     "drop_rejected": "未対応またはアクセスできない項目をスキップしました：\n{items}",
-    "selected_items": "{count} 件の項目を選択（ファイル／フォルダー）"
+    "selected_items": "{count} 件の項目を選択（ファイル／フォルダー）",
+    "preview": "選択画像をプレビュー",
+    "preview_select_one": "プレビューする画像ファイルを 1 つ選択してください。",
+    "preview_starting": "変換プレビューを準備しています…",
+    "preview_ready": "プレビューの準備ができました。設定を変更して再度プレビューできます。",
+    "preview_cancelling": "現在の処理段階の完了後にプレビューをキャンセルします…",
+    "preview_cancelled": "プレビューをキャンセルしました。出力は保存していません。",
+    "preview_error": "プレビューを作成できませんでした：{error}",
+    "preview_missing_renderer": "プレビューには追加のレンダラーが必要です。インストール：pip install 'svgconverter[preview]'",
+    "preview_missing_vectorize": "Vectorize プレビューには VTracer が必要です。インストール：pip install 'svgconverter[vectorize]'",
+    "preview_source": "元の画像",
+    "preview_output": "SVG の描画結果",
+    "preview_dimensions": "{width} × {height} px · {size}",
+    "preview_snapshot": "プレビュー開始時の設定を使用します。サイズはサムネイルではなく実際の入力と生成された SVG の値です。最終 SVG は保存しません。",
+    "preview_animation": "アニメーション画像は代表的な最初のフレームを表示します。再生タイミングはプレビューしません。"
   }
 }
