@@ -123,6 +123,18 @@ svgconverter image.png photo.jpg --output-dir ./svg-output
 `--allowed-root ./workspace`，將解析後的輸入與輸出限制在該資料夾內；解析後落在邊界外的既有
 symlink 也會被拒絕。不指定時，本機 CLI 仍保留存取使用者選定檔案位置的原有行為。
 
+### 自動化 JSON 報告
+
+在單檔或批次指令加上 `--json`，即可輸出一份結構化報告：
+
+```bash
+svgconverter ./images --output-dir ./svg-output --json > report.json
+```
+
+報告包含逐檔路徑、失敗、略過、大小、總計與取消狀態。成功／略過的結束代碼仍為 `0`，
+轉換錯誤為 `1`；無效參數使用標準錯誤並回傳 `2`。
+版本相容性、錯誤規則與 shell 範例請見 [JSON schema 文件](docs/json-reports.zh-TW.md)。
+
 ### embed 模式最佳化
 
 `embed` 模式預設會保留原始點陣 bytes。只有在可接受品質取捨、希望縮小點陣 payload 時，才選擇

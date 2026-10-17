@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
 from . import __version__
 from .converter import (
     BatchResult,
+    ConversionFailure,
     ConversionMetrics,
     EmbedOptions,
     SVGConverterError,
@@ -50,6 +52,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--overwrite", action="store_true", help="Replace existing output SVG files"
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Write one versioned JSON report to stdout instead of human-readable text",
     )
     parser.add_argument(
         "--recursive",
@@ -141,6 +148,68 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _print_json_result(
+    result: BatchResult,
+    arguments: argparse.Namespace,
+    *,
+    error: Exception | None = None,
+) -> None:
+    """Write the version 1 automation report without progress or summary text."""
+
+    report = {
+        "schema_version": 1,
+        "inputs": [str(path) for path in arguments.inputs],
+        "output": str(arguments.output) if arguments.output is not None else None,
+        "output_dir": (
+            str(arguments.output_dir) if arguments.output_dir is not None else None
+        ),
+        "mode": arguments.mode,
+        "totals": {
+            "converted": result.success_count,
+            "skipped": result.skipped_count,
+            "failed": result.failure_count,
+        },
+        "converted": [
+            {
+                "input_path": str(metric.input_path),
+                "output_path": str(metric.output_path),
+                "input_bytes": metric.input_bytes,
+                "svg_bytes": metric.svg_bytes,
+                "embedded_raster_bytes": metric.embedded_raster_bytes,
+            }
+            for metric in result.metrics
+        ],
+        "skipped": [
+            {
+                "input_path": str(skip.input_path),
+                "output_path": str(skip.output_path),
+                "reason": skip.reason,
+            }
+            for skip in result.skipped
+        ],
+        "failed": [
+            {
+                "input_path": str(failure.input_path),
+                "error": str(failure.error),
+                "error_type": type(failure.error).__name__,
+            }
+            for failure in result.failed
+        ],
+        "cancelled": result.cancelled,
+        "sizes": {
+            "input_bytes": result.total_input_bytes,
+            "svg_bytes": result.total_svg_bytes,
+            "embedded_raster_bytes": result.total_embedded_raster_bytes,
+        },
+        "error": (
+            {"error": str(error), "error_type": type(error).__name__}
+            if error is not None
+            else None
+        ),
+    }
+    print(json.dumps(report, ensure_ascii=True, sort_keys=True))
+
+
 def _print_batch_result(result: BatchResult) -> None:
     for output_path in result.converted:
         print(f"Converted: {output_path}")
@@ -199,6 +268,32 @@ def _print_conversion_metrics(metric: ConversionMetrics) -> None:
     )
 
 
+def _print_single_result(
+    metric: ConversionMetrics, arguments: argparse.Namespace
+) -> None:
+    if arguments.json:
+        _print_json_result(
+            BatchResult((metric.output_path,), (), metrics=(metric,)), arguments
+        )
+    else:
+        print(f"Converted: {metric.output_path}")
+        _print_conversion_metrics(metric)
+
+
+def _print_json_error(
+    error: SVGConverterError | ValueError,
+    arguments: argparse.Namespace,
+    *,
+    single_file: bool,
+) -> None:
+    if single_file and isinstance(error, SVGConverterError):
+        _print_json_result(
+            BatchResult((), (ConversionFailure(arguments.inputs[0], error),)), arguments
+        )
+    else:
+        _print_json_result(BatchResult((), ()), arguments, error=error)
+
+
 def _vectorize_options_from_arguments(
     arguments: argparse.Namespace,
 ) -> VectorizeOptions:
@@ -235,12 +330,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         embed_options = _embed_options_from_arguments(arguments)
     except ValueError as error:
         parser.error(str(error))
+    single_file = (
+        len(arguments.inputs) == 1
+        and arguments.inputs[0].is_file()
+        and arguments.output_dir is None
+    )
     try:
-        if (
-            len(arguments.inputs) == 1
-            and arguments.inputs[0].is_file()
-            and arguments.output_dir is None
-        ):
+        if single_file:
             metric = convert_file_with_metrics(
                 arguments.inputs[0],
                 arguments.output,
@@ -250,8 +346,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 embed_options=embed_options,
                 allowed_root=arguments.allowed_root,
             )
-            print(f"Converted: {metric.output_path}")
-            _print_conversion_metrics(metric)
+            _print_single_result(metric, arguments)
             return 0
 
         if arguments.output is not None:
@@ -279,9 +374,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                 embed_options=embed_options,
                 allowed_root=arguments.allowed_root,
             )
-        _print_batch_result(result)
-        return 1 if result.failed else 0
+        if arguments.json:
+            _print_json_result(result, arguments)
+        else:
+            _print_batch_result(result)
+        return 1 if result.failed or result.cancelled else 0
     except (SVGConverterError, ValueError) as error:
+        if arguments.json:
+            _print_json_error(error, arguments, single_file=single_file)
+            return 1
         parser.exit(1, f"error: {error}\n")
 
 
