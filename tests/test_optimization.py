@@ -131,3 +131,19 @@ def test_generated_artwork_has_identical_rendering_after_optimization(
     assert renderer.svg_to_bytes(svg_path=str(plain.output_path)) == (
         renderer.svg_to_bytes(svg_path=str(compact.output_path))
     )
+
+
+def test_optimization_preserves_character_reference_values(tmp_path: Path) -> None:
+    from svgconverter.optimization import optimize_svg_file
+
+    path = tmp_path / "references.svg"
+    path.write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" '
+        'aria-label="a&#9;b&#10;c&#13;d">\n'
+        + " " * 100
+        + "<text>a&#13;b</text>\n</svg>"
+    )
+    optimize_svg_file(path)
+    root = ElementTree.parse(path).getroot()
+    assert root.attrib["aria-label"] == "a\tb\nc\rd"
+    assert root.find("{http://www.w3.org/2000/svg}text").text == "a\rb"

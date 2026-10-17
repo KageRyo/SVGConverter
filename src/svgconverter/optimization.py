@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from xml.dom import Node, minidom
 from xml.parsers.expat import ExpatError
+from xml.sax.saxutils import escape, quoteattr
 
 from .errors import ConversionError
 
@@ -44,6 +45,24 @@ def _compact(element: minidom.Element, preserve_space: bool = False) -> None:
             _compact(child, preserve_space)
 
 
+def _serialize(node: minidom.Node) -> str:
+    """Serialize without normalizing referenced attribute whitespace or CR text."""
+
+    if isinstance(node, minidom.Text):
+        return escape(node.data).replace("\r", "&#13;")
+    if isinstance(node, minidom.Element):
+        attributes = "".join(
+            f" {attribute.name}={quoteattr(attribute.value)}"
+            for attribute in node.attributes.values()
+        )
+        opening = f"<{node.tagName}{attributes}"
+        if not node.childNodes:
+            return opening + "/>"
+        children = "".join(_serialize(child) for child in node.childNodes)
+        return opening + ">" + children + f"</{node.tagName}>"
+    return node.toxml()
+
+
 def optimize_svg_file(path: Path) -> None:
     """Compact a staged SVG after conversion validation, retaining smaller bytes.
 
@@ -60,7 +79,10 @@ def optimize_svg_file(path: Path) -> None:
             if root is None:
                 raise ConversionError("Cannot optimize an SVG without a root element.")
             _compact(root)
-            compact = document.toxml(encoding="utf-8")
+            content = "".join(_serialize(child) for child in document.childNodes)
+            compact = ('<?xml version="1.0" encoding="utf-8"?>' + content).encode(
+                "utf-8"
+            )
         if len(compact) < len(original):
             path.write_bytes(compact)
     except (OSError, ExpatError, ValueError) as error:
