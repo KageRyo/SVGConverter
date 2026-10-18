@@ -25,7 +25,7 @@ or Intel compatibility is implied.
 [Evaluate native desktop distributions](../.github/workflows/native-distributions.yml)
 runs on relevant source/packaging pull requests and merged changes, and can also
 be started manually. Each target uses Python 3.13 and a fresh virtual environment
-with Pillow, VTracer, tkinterdnd2 and PyInstaller. Logs record installed dependency versions,
+with Pillow, VTracer, tkinterdnd2, resvg and PyInstaller. Logs record installed dependency versions,
 the executable architecture and bundle size.
 
 Before packaging, the workflow runs real Embed and Vectorize conversions through
@@ -45,6 +45,8 @@ the checkout. The smoke check verifies:
 - Embed output contains an SVG image, and Vectorize output contains path geometry
   without embedded images, with the expected SVG namespace.
 - A malformed image returns exit code 1 without leaving an output file.
+- Both modes export a PNG through the frozen application's spawned preview
+  process, preserve existing preview PNGs, and leave the source and existing SVG unchanged.
 - The frozen application's default GUI launch stays running for three seconds.
 
 The frozen GUI startup check catches immediate import/Tk/resource failures; it

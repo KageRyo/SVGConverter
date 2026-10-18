@@ -62,7 +62,7 @@ jobs:
           python -m venv "$RUNNER_TEMP/svgconverter-native-build"
           native_python="$RUNNER_TEMP/svgconverter-native-build/bin/python"
           "$native_python" -m pip install --upgrade pip
-          "$native_python" -m pip install ".[vectorize,gui]" pyinstaller pytest
+          "$native_python" -m pip install ".[vectorize,gui,preview]" pyinstaller pytest
           echo "NATIVE_PYTHON=$native_python" >> "$GITHUB_ENV"
           "$native_python" -m pip freeze
       - name: Smoke test installed source application
@@ -89,7 +89,7 @@ jobs:
           fi
           "$NATIVE_PYTHON" -m PyInstaller --noconfirm --clean --onedir --windowed \
             --name SVGConverter --paths src --collect-data svgconverter.resources \
-            --collect-all vtracer --collect-all tkinterdnd2 "${native_options[@]}" main.py
+            --collect-all vtracer --collect-all tkinterdnd2 --collect-all resvg_py "${native_options[@]}" main.py
           file "${{ matrix.executable }}"
           du -sk "dist/${{ matrix.bundle }}"
       - name: Smoke test packaged conversions and GUI startup

@@ -53,6 +53,53 @@ def validate_svg(path: Path, mode: str) -> None:
         raise RuntimeError("Vectorize output must contain real paths without images")
 
 
+def check_preview(
+    command: list[str], source: Path, mode: str, environment: dict[str, str]
+) -> None:
+    """Exercise spawned native backends and safe preview publication."""
+
+    destination = source.parent / f"{mode}-preview.png"
+    arguments = command + [
+        "--preview",
+        str(source),
+        "--output",
+        str(destination),
+        "--mode",
+        mode,
+    ]
+    result = subprocess.run(
+        arguments,
+        cwd=source.parent,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if result.returncode:
+        raise RuntimeError(
+            f"{mode} preview failed ({result.returncode}): {result.stderr}"
+        )
+    png = destination.read_bytes()
+    if not png.startswith(b"\x89PNG\r\n\x1a\n") or struct.unpack("!II", png[16:24]) != (
+        32,
+        32,
+    ):
+        raise RuntimeError(f"{mode} preview did not render the expected PNG")
+    repeated = subprocess.run(
+        arguments,
+        cwd=source.parent,
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        check=False,
+    )
+    if repeated.returncode != 1 or destination.read_bytes() != png:
+        raise RuntimeError("Preview overwrote an existing PNG")
+    print(f"{mode} spawned-process preview passed ({len(png)} PNG bytes).")
+
+
 def check_gui_startup(
     command: list[str], environment: dict[str, str], working_directory: Path
 ) -> None:
@@ -113,6 +160,9 @@ def main() -> None:
         working_directory = Path(directory)
         source = working_directory / "logo spaces 漢字.png"
         create_logo(source)
+        original_source = source.read_bytes()
+        final_svg = source.with_suffix(".svg")
+        final_svg.write_text("Preserve this existing SVG.", encoding="utf-8")
         for mode in ("embed", "vectorize"):
             output = working_directory / f"{mode}.svg"
             result = subprocess.run(
@@ -131,6 +181,13 @@ def main() -> None:
                 )
             validate_svg(output, mode)
             print(f"{mode} conversion passed ({output.stat().st_size} bytes).")
+            check_preview(command, source, mode, environment)
+            if (
+                source.read_bytes() != original_source
+                or final_svg.read_text(encoding="utf-8")
+                != "Preserve this existing SVG."
+            ):
+                raise RuntimeError("Preview modified the source or an existing SVG")
         invalid_source = working_directory / "broken.png"
         invalid_source.write_bytes(b"This is not an image")
         failure_output = working_directory / "failure.svg"
