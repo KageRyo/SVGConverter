@@ -113,9 +113,10 @@ inside the configured root. Publication is exclusive and preserves existing
 files. As with the conversion API, this is a path-scope check rather than a
 sandbox against concurrent filesystem changes.
 
-Record this reviewed issue as `Accepted` with the existing CI credential,
-then remove the one-time disposition step. Retain the rule, source analysis,
-and Quality Gate, and verify the final PR and merged `main` scans.
+This reviewed issue was marked `Accepted` with the existing CI credential on
+2026-10-18. The subsequent PR scan passed; the one-time disposition step was
+removed before merge. Retain the rule, source analysis, and Quality Gate, and
+verify the final PR and merged `main` scans.
 
 ## Baseline rollout
 
