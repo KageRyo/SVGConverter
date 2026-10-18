@@ -21,8 +21,8 @@ Use Python 3.13 for parity with the coverage job. On Debian/Ubuntu, install
 `python3-tk`, `xvfb` and `xauth`, then activate the development virtual environment:
 
 ```bash
-python -m pip install -e '.[dev,vectorize]' \
-  'resvg-py>=0.5,<0.6' 'tkinterdnd2>=0.4.3,<0.5'
+python -m pip install -e '.[dev,vectorize,gui]' \
+  'resvg-py>=0.5,<0.6'
 SVGCONVERTER_NATIVE_GUI=1 xvfb-run -a pytest \
   --cov=svgconverter --cov-config=.coveragerc-gui \
   --cov-report=term-missing --cov-report=xml --cov-report=html

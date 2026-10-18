@@ -52,8 +52,8 @@ jobs:
           sudo apt-get install --no-install-recommends -y xvfb xauth python3-tk
       - name: Install application and GUI test dependencies
         run: |
-          python -m pip install -e ".[dev,vectorize]" \
-            'resvg-py>=0.5,<0.6' 'tkinterdnd2>=0.4.3,<0.5'
+          python -m pip install -e ".[dev,vectorize,gui]" \
+            'resvg-py>=0.5,<0.6'
           python -c "import tkinter; print('Tk runtime:', tkinter.TkVersion)"
       - name: Measure GUI coverage on a native event loop
         env:
