@@ -25,13 +25,18 @@ or Intel compatibility is implied.
 [Evaluate native desktop distributions](../.github/workflows/native-distributions.yml)
 runs on relevant source/packaging pull requests and merged changes, and can also
 be started manually. Each target uses Python 3.13 and a fresh virtual environment
-with Pillow, VTracer and PyInstaller. Logs record installed dependency versions,
+with Pillow, VTracer, tkinterdnd2 and PyInstaller. Logs record installed dependency versions,
 the executable architecture and bundle size.
 
 Before packaging, the workflow runs real Embed and Vectorize conversions through
 the source launcher, initializes the actual Tk application on a display, and runs
 its event loop long enough to verify a viewable window. Linux uses Xvfb; macOS
-uses the runner's desktop session. It then builds the candidate bundle and runs
+uses the runner's desktop session. A separate native drag-and-drop smoke check
+loads tkdnd, registers the GUI target, and delivers Tcl file-drop events for mixed
+files/folders, Unicode and space-containing paths, duplicates, invalid items and
+busy-state refusal. It confirms drops only update selection. This check exercises
+the source application's native bindings rather than an OS file-manager gesture.
+It then builds the candidate bundle, including tkinterdnd2's native data, and runs
 conversions through that exact frozen executable with Python removed from `PATH`,
 Python and dynamic-library path overrides removed, and a temporary working directory outside
 the checkout. The smoke check verifies:
@@ -101,12 +106,17 @@ their Python/Tk packages. Check Tk before launching the application:
 python3 -m tkinter
 python3 -m venv .venv
 . .venv/bin/activate
-python -m pip install 'svgconverter[vectorize]'
+python -m pip install 'svgconverter[vectorize,gui]'
 svgconverter-gui
 ```
 
 Use `python -m pip install svgconverter` if only Embed is needed. CLI conversion
 does not require a display; the GUI does.
+
+The `gui` extra adds file/folder dropping and does not install Tcl/Tk itself. The
+pinned tkdnd binaries target Tcl/Tk 8.x; incompatible Tk 9 or unavailable native
+OS/CPU libraries leave ordinary picker controls usable. Native CI must load the
+extension for its explicit drop smoke check instead of accepting that fallback.
 
 ## macOS runtime and trust limits
 

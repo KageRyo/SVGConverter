@@ -281,6 +281,27 @@ Install the package and run:
 svgconverter-gui
 ```
 
+To enable optional file and folder dropping in a Python installation:
+
+```bash
+python -m pip install --upgrade "svgconverter[gui]"
+```
+
+Drop supported images or folders onto the outlined target. Dropped items are
+added to the current selection, duplicate paths are removed, and paths with
+spaces or Unicode are supported. Unsupported or inaccessible items are listed
+while valid items remain selected. Dropping only selects inputs: choose the
+conversion settings and click **Convert to SVG** to start. Drops during an active
+conversion are refused; folder recursion follows the existing setting.
+
+Drag and drop uses the optional `tkinterdnd2` native extension. It needs a working
+Tkinter installation and a compatible bundled tkdnd library for the OS and CPU.
+The current extension requires Tcl/Tk 8.x; Tcl/Tk 9 builds can fall back to the
+selection buttons. If the extra is missing or its native library cannot load,
+the GUI identifies drag and drop as unavailable and the file/folder pickers
+remain usable. Windows standalone builds include the extension; Linux/macOS
+Python installations depend on their local Tk/native-library compatibility.
+
 The legacy development command `python main.py` starts the same GUI. Select one
 or more files, or a folder, to convert with visible non-blocking progress and a
 converted/skipped/failed summary. You can cancel between files; any per-file
