@@ -141,10 +141,9 @@ def test_preview_reports_missing_vectorize_backend_and_cleans_output(
 
     monkeypatch.setattr(vectorize_module.importlib, "import_module", missing_backend)
 
+    options = VectorizeOptions()
     with pytest.raises(module.PreviewError, match=r"svgconverter\[vectorize\]"):
-        module.create_preview(
-            source, mode="vectorize", vectorize_options=VectorizeOptions()
-        )
+        module.create_preview(source, mode="vectorize", vectorize_options=options)
 
     assert list(tmp_path.iterdir()) == [source]
 
@@ -172,11 +171,15 @@ def test_real_preview_renders_conversion_and_preserves_actual_size_metrics(
         assert result.embedded_raster_bytes is None
     for data in (result.source_png, result.rendered_png):
         with Image.open(BytesIO(data)) as image:
-            assert image.width <= 10 and image.height <= 10
+            assert image.width <= 10
+            assert image.height <= 10
             red, green, blue, alpha = image.convert("RGBA").getpixel(
                 (image.width // 2, image.height // 2)
             )
-            assert red > 200 and green < 30 and blue < 30 and alpha == 255
+            assert red > 200
+            assert green < 30
+            assert blue < 30
+            assert alpha == 255
     assert not source.with_suffix(".svg").exists()
 
 

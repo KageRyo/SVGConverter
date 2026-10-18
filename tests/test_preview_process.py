@@ -88,7 +88,8 @@ def test_preview_pipeline_executes_in_a_child_and_removes_parent_owned_directory
     assert result.input_bytes != os.getpid()
     assert result.source_png == b"source"
     assert result.rendered_png == b"rendered"
-    assert directories and not directories[0].exists()
+    assert directories
+    assert not directories[0].exists()
     assert not multiprocessing.active_children()
 
 
@@ -111,7 +112,8 @@ def test_cancelling_running_preview_terminates_child_before_directory_cleanup(
     with pytest.raises(PreviewCancelled):
         module.create_preview(tmp_path / "source.png", should_cancel=should_cancel)
 
-    assert child_pid and child_pid[0] != os.getpid()
+    assert child_pid
+    assert child_pid[0] != os.getpid()
     assert not directories[0].exists()
     assert all(child.pid != child_pid[0] for child in multiprocessing.active_children())
 
@@ -260,8 +262,10 @@ def test_process_start_failure_closes_resources_and_removes_directory(
     ):
         module.create_preview(tmp_path / "source.png")
 
-    assert receiver.closed and sender.closed
-    assert directories and not directories[0].exists()
+    assert receiver.closed
+    assert sender.closed
+    assert directories
+    assert not directories[0].exists()
     process.close.assert_called_once()
 
 

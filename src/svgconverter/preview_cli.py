@@ -9,10 +9,16 @@ from tempfile import NamedTemporaryFile
 
 from ._publication import publish_without_overwrite
 from .errors import SVGConverterError
+from .paths import ensure_within_root, resolve_allowed_root
 from .preview_process import create_preview
 
 
-def _publish_png(destination: Path, png: bytes) -> None:
+def _publish_png(
+    destination: Path, png: bytes, *, allowed_root: Path | None = None
+) -> None:
+    destination = ensure_within_root(
+        destination, allowed_root, label="Preview output path"
+    )
     destination.parent.mkdir(parents=True, exist_ok=True)
     staged: Path | None = None
     try:
@@ -48,19 +54,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="New preview .png path; existing files are never replaced",
     )
     parser.add_argument("--mode", choices=("embed", "vectorize"), default="embed")
+    parser.add_argument(
+        "--allowed-root",
+        type=Path,
+        help="Restrict source and PNG output paths when called by an untrusted wrapper",
+    )
     arguments = parser.parse_args(argv)
     if arguments.output.suffix.lower() != ".png":
         parser.error("--output must name a PNG file ending in .png")
     try:
-        if arguments.input.resolve() == arguments.output.resolve():
+        path_root = resolve_allowed_root(arguments.allowed_root)
+        source = ensure_within_root(arguments.input, path_root, label="Input path")
+        destination = ensure_within_root(
+            arguments.output, path_root, label="Preview output path"
+        )
+        if source.resolve() == destination.resolve():
             parser.error("Preview output must differ from the source image")
-        if arguments.output.exists():
-            parser.exit(1, f"error: Output already exists: {arguments.output}\n")
-        result = create_preview(arguments.input, mode=arguments.mode)
-        _publish_png(arguments.output, result.rendered_png)
+        if destination.exists():
+            parser.exit(1, f"error: Output already exists: {destination}\n")
+        result = create_preview(source, mode=arguments.mode)
+        _publish_png(destination, result.rendered_png, allowed_root=path_root)
     except (SVGConverterError, OSError, ValueError, RuntimeError) as error:
         parser.exit(1, f"error: {error}\n")
-    print(f"Preview PNG: {arguments.output}")
+    print(f"Preview PNG: {destination}")
     return 0
 
 

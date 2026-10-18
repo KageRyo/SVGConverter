@@ -373,6 +373,9 @@ SVGConverter.exe --preview logo.png --output preview.png --mode vectorize
 The preview export requires a new `.png` destination, preserves existing files,
 and never saves or replaces the source's final SVG. It uses the selected mode's
 default conversion settings. Omit `--mode vectorize` for Embed.
+Wrappers that supply untrusted paths can add `--allowed-root ./workspace` to
+confine both the source and exported PNG, including resolved symlinks, before
+preview work or output creation. Omit it for normal caller-selected local paths.
 
 For a supported release, Windows users can download the standalone
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset from the GitHub Release page; it

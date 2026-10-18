@@ -324,6 +324,8 @@ SVGConverter.exe --preview logo.png --output preview.png --mode vectorize
 
 預覽匯出要求尚未存在的 `.png` 目的檔案，保留既有檔案，並且不儲存或取代來源的最終 SVG。
 此指令使用所選模式的預設轉換設定；省略 `--mode vectorize` 即為 Embed。
+若 wrapper 會傳入不受信任的路徑，可加上 `--allowed-root ./workspace`，在預覽或建立輸出前
+限制來源與匯出 PNG 的位置，也會檢查解析後的 symlink。一般本機選取路徑可維持不指定。
 
 支援此功能的 release 中，Windows 使用者可從 GitHub Release 頁面下載獨立的
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset，內含 VTracer 後端，可直接使用 Embed
