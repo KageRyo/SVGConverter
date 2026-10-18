@@ -358,6 +358,8 @@ def test_convert_button_is_disabled_without_inputs_and_enabled_after_selection()
     app.files_button = Mock()
     app.folder_button = Mock()
     app.convert_button = Mock()
+    app.preview_button = Mock()
+    app._selected_input_kind = "files"
 
     app._update_action_state()
 

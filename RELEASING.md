@@ -39,16 +39,19 @@ PyPI API token.
 
 The release assets include a versioned `SVGConverter-vX.Y.Z-windows-x86_64.exe`
 that does not require a local Python installation. The workflow explicitly
-bundles GUI language resources and the VTracer Python/native backend. Both the
+bundles GUI language resources, the VTracer backend, and the resvg preview renderer. Both the
 build and release workflows run Embed and Vectorize conversions through the
 packaged executable with Python removed from `PATH`, and validate embedded
 images, generated paths, Unicode paths, and failure exit codes before uploading
-the asset. These checks use its `--cli` prefix; normal launch still opens the GUI.
+the asset. They also use `--preview` to export actual PNGs through the spawned
+preview process in both modes, preserving existing PNGs, the source, and any
+existing SVG. Conversion checks use `--cli`; normal launch still opens the GUI.
 The bundled native backend increases executable size relative to the 18.5 MB
 v1.8.1 artifact; inspect the generated artifact size when reviewing a release.
 Before tagging a desktop release, download the
 Windows CI artifact and manually verify file/folder selection, progress,
-cancellation, and language switching on a clean Windows machine.
+cancellation, side-by-side previews, closing during preview, and language switching
+on a clean Windows machine.
 
 Windows builds install `.[vectorize,gui]` and collect all `tkinterdnd2` data and
 native libraries alongside VTracer. Both Windows workflows run

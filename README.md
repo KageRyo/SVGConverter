@@ -329,6 +329,54 @@ location, and provides **Open output folder** and **Convert more images** action
 When installed with Python, Vectorize mode requires the optional `vectorize`
 extra, just like the CLI and Python API.
 
+### Compare before converting
+
+Install the optional preview renderer, then select **one image file** and click
+**Preview selected image**. For path tracing previews, install both extras:
+
+```bash
+python -m pip install "svgconverter[preview]"
+python -m pip install "svgconverter[preview,vectorize]"
+```
+
+The comparison window shows the source image beside the rendered SVG, with the
+actual dimensions and source/SVG byte sizes. Thumbnails are bounded to 360 pixels
+per side; the displayed byte sizes refer to the full conversion. Preview captures
+the selected Embed or Vectorize settings when clicked and runs in a background
+process so native tracing and rendering cannot stall the interface. Changing
+settings requires another explicit preview.
+
+Preview writes to a private temporary directory, removes it before showing the
+comparison, and never uses your final output path or overwrite setting. Cancel
+terminates the preview process; closing the application waits for the child to
+exit and for temporary files to be removed.
+Missing renderer or VTracer dependencies produce installation instructions.
+Windows standalone builds include the preview renderer.
+
+Animated inputs show a representative first frame, without animation timing;
+the normal conversion policy still applies. The source thumbnail respects EXIF
+orientation. For Embed previews, the renderer receives an in-memory PNG version
+of the **converted embedded raster**, because resvg does not honor embedded JPEG
+EXIF orientation or decode every supported raster format. This rendering adapter
+preserves the selected resizing/compression results and never changes the
+generated SVG or its reported byte size. Different SVG viewers may render small
+details differently.
+
+To export a bounded, static preview PNG without opening the GUI:
+
+```bash
+python -m svgconverter.preview_cli logo.png --output preview.png --mode vectorize
+# Windows standalone executable:
+SVGConverter.exe --preview logo.png --output preview.png --mode vectorize
+```
+
+The preview export requires a new `.png` destination, preserves existing files,
+and never saves or replaces the source's final SVG. It uses the selected mode's
+default conversion settings. Omit `--mode vectorize` for Embed.
+Wrappers that supply untrusted paths can add `--allowed-root ./workspace` to
+confine both the source and exported PNG, including resolved symlinks, before
+preview work or output creation. Omit it for normal caller-selected local paths.
+
 For a supported release, Windows users can download the standalone
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset from the GitHub Release page; it
 includes the VTracer backend for both Embed and Vectorize and does not require

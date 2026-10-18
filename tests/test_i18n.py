@@ -92,6 +92,20 @@ def test_bundled_translations_have_all_supported_locales() -> None:
                 "result_failures",
                 "open_output_folder",
                 "convert_more",
+                "preview",
+                "preview_select_one",
+                "preview_starting",
+                "preview_ready",
+                "preview_cancelling",
+                "preview_cancelled",
+                "preview_error",
+                "preview_missing_renderer",
+                "preview_missing_vectorize",
+                "preview_source",
+                "preview_output",
+                "preview_dimensions",
+                "preview_snapshot",
+                "preview_animation",
             }
         )
     }

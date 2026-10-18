@@ -42,7 +42,7 @@ jobs:
       - name: Install application and PyInstaller
         run: |
           python -m pip install --upgrade pip
-          python -m pip install ".[vectorize,gui]" pyinstaller pytest
+          python -m pip install ".[vectorize,gui,preview]" pyinstaller pytest
       - name: Smoke test native GUI file dropping
         env:
           SVGCONVERTER_NATIVE_GUI: "1"
@@ -69,7 +69,7 @@ jobs:
         run: >
           pyinstaller --noconfirm --clean --onefile --windowed
           --name SVGConverter --paths src
-          --collect-data "svgconverter.resources" --collect-all vtracer --collect-all tkinterdnd2 main.py
+          --collect-data "svgconverter.resources" --collect-all vtracer --collect-all tkinterdnd2 --collect-all resvg_py main.py
       - name: Smoke test packaged Embed and Vectorize conversion
         shell: pwsh
         run: ./.github/scripts/smoke-windows-executable.ps1 -Executable dist/SVGConverter.exe
@@ -100,6 +100,6 @@ jobs:
           python-version: "3.13"
           cache: pip
       - name: Install vectorize extra and test tools
-        run: python -m pip install -e ".[dev,vectorize]" "resvg-py>=0.5,<0.6"
+        run: python -m pip install -e ".[dev,vectorize,preview]"
       - name: Test vectorize mode
-        run: pytest -q tests/test_vectorize.py tests/test_optimization.py
+        run: pytest -q tests/test_vectorize.py tests/test_optimization.py tests/test_preview.py tests/test_preview_process.py tests/test_launcher.py

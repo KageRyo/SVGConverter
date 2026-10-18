@@ -99,3 +99,50 @@ def test_packaged_launcher_opens_gui_by_default(
 
     assert exit_status.value.code == 0
     run_gui.assert_called_once_with()
+
+
+@pytest.mark.parametrize("mode", ["embed", "vectorize"])
+def test_packaged_launcher_exports_preview_through_spawned_process(
+    tmp_path: Path, mode: str
+) -> None:
+    pytest.importorskip("resvg_py")
+    if mode == "vectorize":
+        pytest.importorskip("vtracer")
+    source = tmp_path / "預覽 空間.png"
+    output = tmp_path / "preview.png"
+    final_svg = source.with_suffix(".svg")
+    image = Image.new("RGB", (32, 24), "white")
+    ImageDraw.Draw(image).rectangle((8, 8, 24, 20), fill="black")
+    image.save(source)
+    original_source = source.read_bytes()
+    final_svg.write_text("existing SVG", encoding="utf-8")
+    repository = Path(__file__).resolve().parents[1]
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(repository / "src")
+    environment.pop("DISPLAY", None)
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(repository / "main.py"),
+            "--preview",
+            str(source),
+            "--output",
+            str(output),
+            "--mode",
+            mode,
+        ],
+        env=environment,
+        capture_output=True,
+        text=True,
+        timeout=20,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    with Image.open(output) as preview:
+        assert preview.format == "PNG"
+        assert preview.size == (32, 24)
+        assert preview.convert("RGB").getpixel((16, 12)) == (0, 0, 0)
+    assert source.read_bytes() == original_source
+    assert final_svg.read_text(encoding="utf-8") == "existing SVG"

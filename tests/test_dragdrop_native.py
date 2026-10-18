@@ -22,8 +22,30 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.fixture
-def native_app(caplog: pytest.LogCaptureFixture) -> Iterator[SVGConverterApp]:
+def library_files(app: SVGConverterApp) -> tuple[Path, ...]:
+    tcl_library = Path(str(app.root.tk.call("info", "library")))
+    tk_library = Path(str(app.root.tk.call("set", "tk_library")))
+    return (
+        tcl_library / "init.tcl",
+        tk_library / "tk.tcl",
+        tk_library / "menu.tcl",
+    )
+
+
+def check_library_files(paths: tuple[Path, ...], stage: str) -> None:
+    for path in paths:
+        print(f"{stage}: {path} exists={path.is_file()}")
+        assert path.is_file(), f"Native Tcl/Tk library file is missing: {path}"
+
+
+@pytest.fixture(scope="module")
+def native_application() -> Iterator[SVGConverterApp]:
+    """Keep one native Tk interpreter for the application's complete lifetime.
+
+    Tk/tkdnd state is interpreter-owned. These scenarios exercise one application's
+    selection states rather than repeated teardown/reinitialization of native Tk.
+    """
+
     print(
         f"Native runtime: {platform.system()} {platform.machine()}, "
         f"Python {platform.python_version()}, Tcl/Tk "
@@ -32,13 +54,17 @@ def native_app(caplog: pytest.LogCaptureFixture) -> Iterator[SVGConverterApp]:
     )
     for script in (Path(sys.base_prefix) / "tcl").glob("tcl*/init.tcl"):
         print(f"Interpreter Tcl startup script: {script} (exists={script.is_file()})")
-    with caplog.at_level(logging.DEBUG, logger="svgconverter.dragdrop"):
-        app = SVGConverterApp()
+    logger = logging.getLogger("svgconverter.dragdrop")
+    previous_level = logger.level
     try:
-        library = Path(app.root.tk.call("info", "library"))
-        print(
-            f"Loaded Tcl library: {library} (init={(library / 'init.tcl').is_file()})"
-        )
+        logger.setLevel(logging.DEBUG)
+        app = SVGConverterApp()
+    finally:
+        logger.setLevel(previous_level)
+    paths: tuple[Path, ...] = ()
+    try:
+        paths = library_files(app)
+        check_library_files(paths, "After native startup")
         if not app._drop_available:
             # The normal GUI retains working pickers when loading fails. In this
             # explicit native check, surface Tcl's original load error as well.
@@ -48,10 +74,25 @@ def native_app(caplog: pytest.LogCaptureFixture) -> Iterator[SVGConverterApp]:
         yield app
     finally:
         app.root.destroy()
-        print(
-            f"After window teardown: {library / 'init.tcl'} exists="
-            f"{(library / 'init.tcl').is_file()}"
-        )
+        check_library_files(paths, "After application teardown")
+
+
+@pytest.fixture
+def native_app(native_application: SVGConverterApp) -> Iterator[SVGConverterApp]:
+    app = native_application
+    app._cancel_event.clear()
+    app._set_running(False)
+    app.reset_for_new_conversion()
+    app.root.update()
+    paths = library_files(app)
+    check_library_files(paths, "Before drop scenario")
+    try:
+        yield app
+    finally:
+        app._set_running(False)
+        app.reset_for_new_conversion()
+        app.root.update()
+        check_library_files(paths, "After drop scenario")
 
 
 def deliver_file_drop(app: SVGConverterApp, paths: tuple[Path, ...]) -> str:

@@ -32,8 +32,8 @@ error and should be fixed before merging.
   complete test suite remains covered.
 - `build.yml` validates package distributions, the Windows standalone
   executable, and the vectorize integration path.
-- `sonarqube.yml` uses Python 3.13, installs the development and vectorize
-  extras, generates `coverage.xml`, and runs
+- `sonarqube.yml` uses Python 3.13, installs the development, vectorize, and
+  preview extras, generates `coverage.xml`, and runs
   `SonarSource/sonarqube-scan-action@v7` with a full Git checkout. The scanner
   waits for the Quality Gate and fails the job when the gate fails.
 - The Sonar workflow runs on `main` pushes, manual Sonar workflow dispatches,
@@ -92,6 +92,31 @@ The 2026-10-12 `main` analysis at `26a80e3` reports six open S8707 issues. The f
 All six paths originate in the caller-selected local CLI/library input and output arguments. `convert_file_with_metrics()` resolves the optional `allowed_root` and validates both input and explicit output before raster reads or output creation. Its temporary output is created beside the validated destination and is passed directly to publication. Batch conversion propagates the same root. The project has no HTTP or LLM execution boundary; an LLM caller must configure the documented root just like any other untrusted integration. The existing traversal and symlink escape tests verify this contract. `allowed_root` is a path-scope check, not a sandbox against another process changing the filesystem during conversion.
 
 Retain the rule and the Quality Gate. Record these issue-specific dispositions in SonarQube Cloud after review instead of excluding paths or changing the default local API.
+
+### S8707 review for preview issue #78
+
+PR #97 reports the following path finding after adding preview export. The
+2026-10-18 review covers the complete preview process and publication flow,
+including an independent source review and the traversal and symlink tests.
+
+| Sonar issue | Reviewed operation | Disposition |
+| --- | --- | --- |
+| `AaFNUE2TpdXNQ-N43Bxx` | Preview output parent creation in `preview_cli.py` | Accept design choice |
+
+The preview CLI follows the existing local path contract: caller-selected
+paths remain unrestricted by default, and untrusted integrations must set
+`--allowed-root`. It resolves and validates source and output paths before
+starting the child process, then rechecks the destination before creating its
+parent directory and publishing the PNG. Regression tests reject absolute,
+traversal, source-symlink, and output-symlink escapes, and verify valid exports
+inside the configured root. Publication is exclusive and preserves existing
+files. As with the conversion API, this is a path-scope check rather than a
+sandbox against concurrent filesystem changes.
+
+This reviewed issue was marked `Accepted` with the existing CI credential on
+2026-10-18. The subsequent PR scan passed; the one-time disposition step was
+removed before merge. Retain the rule, source analysis, and Quality Gate, and
+verify the final PR and merged `main` scans.
 
 ## Baseline rollout
 
