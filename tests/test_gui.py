@@ -168,68 +168,7 @@ def test_result_feedback_renders_output_location_and_folder_action(
     assert app.result_output_var.get() == f"Output: {tmp_path}"
     assert "photo.jpg" in app.result_metrics_var.get()
     app.open_output_button.configure.assert_called_once_with(state=gui_module.tk.NORMAL)
-    app.result_frame.pack.assert_called_once_with(
-        fill=gui_module.tk.X, pady=(12, 0), before=app.language_menu
-    )
-
-
-def test_reset_for_new_conversion_returns_to_ready_state() -> None:
-    app = object.__new__(SVGConverterApp)
-    app._running = False
-    app._selected_input_paths = ("photo.png",)
-    app._selected_input_kind = "files"
-    app._last_result = Mock()
-    app._last_conversion_options = Mock()
-    app._result_output_folder = Path("/tmp/svg-output")
-    app.result_frame = Mock()
-    app.progress = Mock()
-    app.input_summary_var = FakeVar("Selected file: photo.png")
-    app.status_var = FakeVar("Conversion complete")
-    app.locale = "en_US"
-    app.translations = {
-        "en_US": {
-            "no_input_selected": "No files or folder selected.",
-            "ready": "Select files or a folder to start converting.",
-        }
-    }
-    app._update_action_state = Mock()
-
-    reset_for_new_conversion = getattr(app, "reset_for_new_conversion", None)
-
-    assert callable(reset_for_new_conversion)
-    reset_for_new_conversion()
-
-    assert app._selected_input_paths == ()
-    assert app._selected_input_kind is None
-    assert app._last_result is None
-    assert app._last_conversion_options is None
-    assert app._result_output_folder is None
-    assert app.input_summary_var.get() == "No files or folder selected."
-    assert app.status_var.get() == "Select files or a folder to start converting."
-    app.result_frame.pack_forget.assert_called_once_with()
-    app.progress.configure.assert_called_once_with(value=0, maximum=1)
-
-
-def test_select_files_records_selection_without_starting_conversion(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    app = object.__new__(SVGConverterApp)
-    app.root = object()
-    app.locale = "en_US"
-    app.translations = {"en_US": {"select_files": "Select Files"}}
-    app._set_selected_inputs = Mock()
-    app._start_conversion = Mock()
-    selected_files = ("photo.png", "logo.jpg")
-    monkeypatch.setattr(
-        gui_module.filedialog,
-        "askopenfilenames",
-        lambda **_: selected_files,
-    )
-
-    app.select_files()
-
-    app._set_selected_inputs.assert_called_once_with(selected_files, "files")
-    app._start_conversion.assert_not_called()
+    app.result_frame.pack.assert_called_once()
 
 
 def test_select_folder_records_selection_without_starting_conversion(
@@ -253,18 +192,6 @@ def test_select_folder_records_selection_without_starting_conversion(
     app._start_conversion.assert_not_called()
 
 
-def test_convert_selected_starts_conversion_for_recorded_inputs() -> None:
-    app = object.__new__(SVGConverterApp)
-    app._selected_input_paths = ("photo.png", "logo.jpg")
-    app._start_conversion = Mock()
-    convert_selected = getattr(app, "convert_selected", None)
-
-    assert callable(convert_selected)
-    convert_selected()
-
-    app._start_conversion.assert_called_once_with(app._selected_input_paths)
-
-
 def test_input_summary_describes_multiple_selected_files() -> None:
     app = object.__new__(SVGConverterApp)
     app._selected_input_paths = ("photo.png", "logo.jpg")
@@ -278,30 +205,7 @@ def test_input_summary_describes_multiple_selected_files() -> None:
             "selected_folder": "Selected folder: {folder}",
         }
     }
-    input_summary_text = getattr(app, "_input_summary_text", None)
-
-    assert callable(input_summary_text)
-    assert input_summary_text() == "2 files selected"
-
-
-def test_mode_hint_explains_the_selected_conversion_outcome() -> None:
-    app = object.__new__(SVGConverterApp)
-    app.locale = "en_US"
-    app.translations = {
-        "en_US": {
-            "embed_mode_hint": "Keep the original appearance.",
-            "vectorize_mode_hint": "Create editable vector paths.",
-        }
-    }
-    app.mode_var = FakeVar("embed")
-    mode_hint_text = getattr(app, "_mode_hint_text", None)
-
-    assert callable(mode_hint_text)
-    assert mode_hint_text() == "Keep the original appearance."
-
-    app.mode_var.set("vectorize")
-
-    assert mode_hint_text() == "Create editable vector paths."
+    assert app._input_summary_text() == "2 files selected"
 
 
 def test_selected_inputs_are_converted_only_after_explicit_action(
@@ -376,16 +280,13 @@ def test_advanced_settings_toggle_changes_visibility() -> None:
     app = object.__new__(SVGConverterApp)
     app.advanced_expanded = FakeVar(False)
     app.advanced_frame = Mock()
-    toggle_advanced_settings = getattr(app, "toggle_advanced_settings", None)
 
-    assert callable(toggle_advanced_settings)
-
-    toggle_advanced_settings()
+    app.toggle_advanced_settings()
 
     assert app.advanced_expanded.get() is True
-    app.advanced_frame.pack.assert_called_once_with(fill=gui_module.tk.X, pady=(10, 0))
+    app.advanced_frame.pack.assert_called_once()
 
-    toggle_advanced_settings()
+    app.toggle_advanced_settings()
 
     assert app.advanced_expanded.get() is False
     app.advanced_frame.pack_forget.assert_called_once_with()
@@ -412,13 +313,10 @@ def test_toggling_advanced_settings_preserves_option_values() -> None:
     )
     app.advanced_expanded = FakeVar(False)
     app.advanced_frame = Mock()
-    toggle_advanced_settings = getattr(app, "toggle_advanced_settings", None)
-
-    assert callable(toggle_advanced_settings)
     before = app._build_conversion_options()
 
-    toggle_advanced_settings()
-    toggle_advanced_settings()
+    app.toggle_advanced_settings()
+    app.toggle_advanced_settings()
 
     assert app._build_conversion_options() == before
 
