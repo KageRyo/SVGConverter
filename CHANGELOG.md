@@ -7,6 +7,18 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 
 ## Unreleased
 
+## 1.9.0 - 2026-10-23
+
+### Added
+
+- Responsive Embed/Vectorize conversion previews and native file/folder dropping.
+- Shared tracing presets, compact SVG output without coordinate rounding, and versioned JSON conversion reports.
+
+### Fixed
+
+- Validate generated SVG before replacing output and reject destructive animated-image preprocessing.
+- Bundle and verify the Windows VTracer backend; require patched Pillow on supported newer Python versions.
+
 ## 1.8.2 - 2026-10-12
 
 ### Fixed
