@@ -27,7 +27,7 @@ python -m build
 python -m twine check dist/*
 ```
 
-Core coverage has an unchanged 85% minimum configured in `pyproject.toml`.
+Core coverage has an 85% minimum configured in `pyproject.toml`.
 The GUI is measured separately by the **GUI coverage baseline** CI job, with an
 80% statement/branch baseline configured in `.coveragerc-gui`. Headless GUI unit
 tests run everywhere; native Tk state and event-loop checks run explicitly under

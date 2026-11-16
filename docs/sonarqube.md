@@ -21,9 +21,9 @@ Configure these values in the GitHub repository settings:
 | `SONAR_TOKEN` | Actions secret | Token allowed to analyze this project |
 
 The Sonar job is enabled only when both Actions variables are present. This
-keeps the initial rollout safe while the external project and token are being
-configured. A missing token after enabling the variables is a configuration
-error and should be fixed before merging.
+lets CI pass before the SonarQube project and token are set up. A missing token
+after enabling the variables is a configuration error and should be fixed before
+merging.
 
 ## Workflow behavior
 

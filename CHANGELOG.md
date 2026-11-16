@@ -63,9 +63,10 @@ This project follows [Semantic Versioning](https://semver.org/) and uses
 ### Added
 
 - Reworked the GUI into an explicit select, configure, and convert workflow.
-- Added progressive disclosure for general, embed, and vectorize controls.
-- Added outcome-oriented mode descriptions and inline guidance for advanced
-  settings in Traditional Chinese, English, and Japanese.
+- Grouped general, embed, and vectorize controls into sections that open when
+  needed.
+- Added mode descriptions that say what each mode produces, plus inline guidance
+  for advanced settings in Traditional Chinese, English, and Japanese.
 - Added inline completion feedback with batch counts, conversion metrics,
   output-folder access, and a reset action for converting more images.
 

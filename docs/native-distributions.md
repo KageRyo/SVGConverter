@@ -4,9 +4,10 @@ The decision for this release cycle is **no-go for public Linux/macOS standalone
 release assets**. Keep the Python package as the supported installation route on
 these systems. Continue the existing Windows x86_64 executable distribution.
 
-The native evaluation workflow makes future packaging decisions repeatable. It
-builds temporary CI artifacts for the following targets, but does not add assets
-to GitHub Releases or make a compatibility/support promise for those archives:
+The native evaluation workflow reruns the same packaging checks whenever this
+decision is revisited. It builds temporary CI artifacts for the following
+targets, but does not add assets to GitHub Releases or make a
+compatibility/support promise for those archives:
 
 | Evaluation target | Runner / CPU | Candidate format | Public standalone support |
 | --- | --- | --- | --- |
@@ -56,12 +57,12 @@ Passing on a build runner also does not establish clean-machine portability.
 
 Only successful builds are archived. The seven-day CI artifacts preserve bundle
 symlinks and executable permissions inside `.tar.gz`; they are evaluation inputs,
-not release downloads. No signing secrets, publication permissions or new release
-workflow dependencies are introduced.
+not release downloads. The workflow uses no signing secrets or publishing
+permissions, and the release workflow does not depend on it.
 
 An initial local Linux x86_64 probe on WSL (Python 3.12, Tcl/Tk 9) passed
 source conversions and window initialization. Its first frozen build converted
-images but failed GUI import because Tcl shared libraries were missing; the new
+images but failed GUI import because Tcl shared libraries were missing; the
 smoke check rejected that build. After exposing the interpreter's native library
 directory to PyInstaller during packaging, the frozen conversions and GUI startup
 passed with library-path overrides removed at runtime. This host is not either
@@ -70,8 +71,8 @@ nor macOS support; those native job results must be checked independently.
 
 ## Why public standalone distribution remains deferred
 
-Two additional native builds per relevant change are a manageable evaluation
-baseline. Public distribution would add recurring work that these jobs do not
+Two extra native builds per relevant change is an affordable cost for
+evaluation. Public distribution would add recurring work that these jobs do not
 cover: a supported Linux distribution/ABI matrix, clean desktop installation
 checks, macOS signing credentials and notarization, release artifact verification,
 and separate CPU builds with compatible Pillow/VTracer/Tk binaries. There is no
