@@ -16,7 +16,7 @@ SVGConverter 可將 PNG、JPEG、WebP、BMP、TIFF 影像轉為 SVG，並提供 
 
 | 介面 | 適合情境 | 主要功能 |
 | --- | --- | --- |
-| Python API | 整合到應用程式與自動化流程 | 單檔、混合批次、大小 metrics、進度與取消 |
+| Python API | 整合到應用程式與自動化流程 | 單檔、混合批次、大小統計、進度與取消 |
 | 命令列工具 | Script 與可重複執行的流程 | 檔案、資料夾、遞迴、輸出資料夾與最佳化 |
 | 桌面 GUI | 互動式轉換 | 兩種模式、轉換選項、進度與取消 |
 
@@ -33,15 +33,7 @@ SVGConverter 可將 PNG、JPEG、WebP、BMP、TIFF 影像轉為 SVG，並提供 
 | --- | --- | --- |
 | 保留像素，尤其是照片 | `embed` | 自包含 SVG 與嵌入的點陣資料；預設保留原始 bytes，但 Base64 會增加一些大小 |
 | 從 logo、icon 或線稿建立可編輯路徑 | `vectorize` | VTracer 產生的 SVG 路徑；結果取決於描繪選項與輸入複雜度 |
-| 同時需要忠實影像與路徑版本 | 兩種模式都執行 | 兩者是不同表示方式；`embed` 不能取代向量化 |
-
-### 代表性輸入
-
-| 輸入 | `embed` | `vectorize` | 建議選擇 |
-| --- | --- | --- | --- |
-| 照片 | 忠實保留像素；大小取決於原始點陣資料再加上 SVG/Base64 額外負擔 | 可能變得更大且風格化 | `embed` |
-| Logo 或 icon | 忠實保留點陣外觀 | 通常適合轉成路徑；大小取決於描繪選項 | 需要可編輯路徑時選 `vectorize` |
-| 高對比線稿 | 保留原始點陣外觀 | 通常適合轉成路徑 | 依忠實度與可編輯性需求選擇 |
+| 同時需要原樣影像和可編輯路徑 | 兩種模式都執行 | 兩種輸出用途不同；`embed` 不能取代向量化 |
 
 ## 轉換模式
 
@@ -49,8 +41,8 @@ SVGConverter 可將 PNG、JPEG、WebP、BMP、TIFF 影像轉為 SVG，並提供 
   向量化，且 Base64 編碼可能讓輸出大於原圖。TIFF 是例外：多數瀏覽器無法顯示 TIFF，因此會將
   第一頁以無損 PNG 嵌入。
 - **`vectorize`** 使用選用的 [VTracer](https://github.com/visioncortex/vtracer) 後端，把
-  點陣區域描繪為 SVG 路徑。它適合 logo、icon、插圖與高對比線稿；照片可能產生較大且風格化、
-  不一定忠於原圖的結果。
+  點陣區域描繪為 SVG 路徑。它適合 logo、icon、插圖與高對比線稿；照片轉出來可能檔案更大、
+  看起來像插畫，跟原圖不太一樣。
 
 ## 安裝
 
@@ -60,7 +52,7 @@ SVGConverter 需要 Python 3.10 以上：
 python -m pip install --upgrade svgconverter
 ```
 
-需要實際向量化時，安裝額外相依：
+要用向量化，另外安裝 `vectorize` extra：
 
 ```bash
 python -m pip install --upgrade "svgconverter[vectorize]"
@@ -107,8 +99,7 @@ svgconverter ./images --output-dir ./svg-output
 svgconverter ./images --output-dir ./svg-output --recursive
 ```
 
-一次轉換多個明確指定的檔案；支援萬用字元展開的 shell 也可以在執行前展開
-`./images/*.png` 這類 pattern：
+一次轉換多個檔案。也可以寫 `./images/*.png` 這類萬用字元，交給 shell 展開：
 
 ```bash
 svgconverter image.png photo.jpg --output-dir ./svg-output
@@ -121,7 +112,7 @@ svgconverter image.png photo.jpg --output-dir ./svg-output
 
 如果 wrapper 會把不受信任的使用者或 agent 輸入直接傳成路徑，請加上
 `--allowed-root ./workspace`，將解析後的輸入與輸出限制在該資料夾內；解析後落在邊界外的既有
-symlink 也會被拒絕。不指定時，本機 CLI 仍保留存取使用者選定檔案位置的原有行為。
+symlink 也會被拒絕。不加這個選項，CLI 照常能讀寫你指定的任何位置。
 
 ### 自動化 JSON 報告
 
@@ -137,8 +128,7 @@ svgconverter ./images --output-dir ./svg-output --json > report.json
 
 ### embed 模式最佳化
 
-`embed` 模式預設會保留原始點陣 bytes。只有在可接受品質取捨、希望縮小點陣 payload 時，才選擇
-縮放或重新編碼：
+`embed` 模式預設會保留原始點陣 bytes。願意犧牲一點畫質換取較小檔案時，再開啟縮放或重新編碼：
 
 ```bash
 svgconverter photo.jpg --max-width 1600 --jpeg-quality 82
@@ -152,8 +142,8 @@ svgconverter illustration.png --png-compress-level 9 --optimize-png
 
 動態 WebP 與 APNG 在不需要修改點陣資料時，會保留原始 bytes、影格與時間資訊。
 若要求縮放這兩種格式，或對 APNG 套用 PNG 壓縮／最佳化，會回報 `ConversionError`，
-避免無聲遺失動畫。移除這些選項即可原樣嵌入動畫；大於來源尺寸的縮放上限及其他格式專用選項
-不會改動原始 bytes。批次轉換會將不支援的動畫處理列為個別檔案失敗，並繼續處理其餘影像；
+不會悄悄把動畫丟掉。移除這些選項即可原樣嵌入動畫；如果縮放上限比原圖大，或選項只適用於其他格式，
+原始 bytes 也不會被改動。批次轉換會將不支援的動畫處理列為個別檔案失敗，並繼續處理其餘影像；
 CLI 會回傳結束代碼 1，GUI 會顯示失敗詳情。動畫能否播放仍取決於 SVG 檢視器。
 
 ### Vectorize 預設組合
@@ -171,14 +161,24 @@ GUI 的向量化預設組合選單提供相同名稱與對應說明。選擇後�
 | 預設組合 | 色彩／階層／曲線 | 小區域／色彩位元／圖層差異／路徑小數位數 | 適用情境與取捨 |
 | --- | --- | --- | --- |
 | `default` | color / stacked / spline | 未設定／未設定／未設定／未設定 | 沿用既有行為，可先試用於混合類型影像 |
-| `logo` | color / stacked / spline | 4 / 8 / 16 / 3 | 平滑彩色 Logo；保留較多色彩細節，但可能移除微小區域 |
-| `icon` | color / cutout / polygon | 2 / 8 / 8 / 2 | 稜角分明的 Icon；保留銳利角落，曲線可能呈現折線 |
+| `logo` | color / stacked / spline | 4／8／16／3 | 平滑彩色 Logo；保留較多色彩細節，但可能移除微小區域 |
+| `icon` | color / cutout / polygon | 2／8／8／2 | 稜角分明的 Icon；保留銳利角落，曲線可能呈現折線 |
 | `line-art` | binary / stacked / spline | 2／未設定／未設定／3 | 高對比黑白線稿；捨棄色彩並移除微小雜點 |
-| `illustration` | color / stacked / spline | 4 / 6 / 16 / 3 | 平滑彩色插圖；合併相近顏色以簡化路徑 |
+| `illustration` | color / stacked / spline | 4／6／16／3 | 平滑彩色插圖；合併相近顏色以簡化路徑 |
 
 未設定的數值使用 VTracer 預設值。`default` 等同 `VectorizeOptions()`，未指定組合時沿用此行為。
-明確指定的 CLI 選項會覆寫組合，包括 0 及與原本預設相同的選項值。描繪品質取決於輸入特性；
-這些組合不保證完整重現形狀或縮小檔案，使用結果前請先檢視。
+明確指定的 CLI 選項會覆寫組合，包括 0 及與原本預設相同的選項值。描繪效果要看原圖；
+這些組合不保證形狀完全一致或檔案變小，使用前請先看過結果。
+
+### 向量 SVG 壓縮
+
+使用 `svgconverter logo.png --mode vectorize --optimize-svg`，或在 Python API 傳入
+`VectorizeOptions(optimize_svg=True)`。這個選用功能只刪除 XML 縮排與路徑指令旁多餘的空白，
+不會四捨五入座標、更動描繪參數或改變有意義的文字。壓縮後比較小才會採用，
+大小統計以最後寫出的檔案為準；轉換或最佳化失敗時會保留既有 SVG。預設不啟用，與 Embed 的點陣最佳化分開。
+
+VTracer 本身的標記已相當精簡，因此縮減幅度有限；實測大小與渲染比對見
+[評估文件](docs/svg-optimization.md)。
 
 ## Python API
 
@@ -225,7 +225,7 @@ print(metric.input_bytes, metric.embedded_raster_bytes, metric.svg_bytes)
 
 `convert_file()` 會回傳輸出 `pathlib.Path`。資料夾轉換則回傳 `BatchResult`，其中包含成功檔案與
 逐檔錯誤，單一壞檔不會使整批工作中斷。`convert_paths()` 可接收檔案與資料夾的混合輸入；
-批次既有輸出預設列為略過，指定 `overwrite=True` 才會覆寫。`EmbedOptions` 為 opt-in；未設定時
+批次既有輸出預設列為略過，指定 `overwrite=True` 才會覆寫。`EmbedOptions` 預設不啟用；未設定時
 embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `BatchResult.metrics` 會回報來源、
 嵌入點陣與 SVG 的 byte 大小。
 可使用 `progress_callback` 取得每個已處理項目；讓 `should_cancel` 回傳 `True`，即可在下一個檔案
@@ -235,7 +235,7 @@ embed 模式會使用原始點陣 bytes。`convert_file_with_metrics()` 與 `Bat
 可將選用數值欄位設為 `None`，恢復使用後端預設值。未知的組合名稱會拋出 `ValueError`，
 訊息中會列出支援名稱。
 
-未指定 `overwrite=True` 時，完成的 SVG 會以原子性的 hard link 發布，避免並行轉換互相覆寫。
+未指定 `overwrite=True` 時，完成的 SVG 會以原子性的 hard link 寫到目的位置，避免並行轉換互相覆寫。
 若發生衝突，會拋出 `OutputExistsError`，批次轉換則記錄為逐檔失敗。不支援 hard link 時，
 Windows 使用不覆寫的 rename，Linux 使用 `renameat2(RENAME_NOREPLACE)`，macOS 使用
 `renamex_np(RENAME_EXCL)`。兩種操作皆不可用時會回報錯誤，不會留下不完整的 SVG。
@@ -243,7 +243,7 @@ Windows 使用不覆寫的 rename，Linux 使用 `renameat2(RENAME_NOREPLACE)`�
 
 如果整合程式會接受不受信任的路徑值，請對 `convert_file()`、`convert_file_with_metrics()`、
 `convert_directory()`、`convert_paths()` 或 `SVGConverter` 傳入 `allowed_root`。Converter 會先解析路徑，
-拒絕輸入、輸出以及 symlink 跳出該資料夾的情況。預設 `allowed_root=None` 會保留本機 library 的原有行為。
+拒絕輸入、輸出以及 symlink 跳出該資料夾的情況。預設 `allowed_root=None`，不限制路徑。
 
 ## GUI
 
@@ -262,28 +262,27 @@ python -m pip install --upgrade "svgconverter[gui]"
 ```
 
 將支援的影像或資料夾拖放到框線區域，即可加入目前選擇；重複路徑會去除，也支援空白與 Unicode
-路徑。不支援或無法存取的項目會列出，合法項目仍會保留。拖放只會選擇輸入，不會立即轉換；
+路徑。不支援或無法存取的項目會列出，其他可用的項目仍會保留。拖放只會選擇輸入，不會立即轉換；
 確認設定後按**轉換成 SVG**才會開始。轉換進行中會拒絕新的拖放，資料夾是否遞迴則依原有設定。
 
 拖放使用選用的 `tkinterdnd2` 原生擴充，需要可用的 Tkinter，以及符合作業系統與 CPU 的 tkdnd
 原生函式庫。目前擴充需要 Tcl/Tk 8.x；使用 Tcl/Tk 9 的環境可能會退回選擇按鈕。若未安裝 extra，
 或原生函式庫無法載入，GUI 會顯示拖放不可用，仍可使用檔案與資料夾選擇按鈕。Windows 獨立版會
-內含擴充；Linux／macOS 的 Python 安裝則取決於本機 Tk 與原生函式庫相容性。
+內含擴充；Linux／macOS 透過 Python 安裝時，能不能拖放要看本機的 Tk 與原生函式庫。
 
-開發環境仍可用 `python main.py` 啟動相同 GUI。可選取一或多個檔案，或選擇一個資料夾；轉換時會以
-非阻塞方式顯示進度與已轉換／略過／失敗摘要。可在檔案之間取消，個別檔案錯誤會在批次結束後顯示，
+開發環境仍可用 `python main.py` 啟動相同 GUI。可選取一或多個檔案，或選擇一個資料夾；轉換時介面
+不會卡住，並顯示進度與已轉換／略過／失敗摘要。可在檔案之間取消，個別檔案錯誤會在批次結束後顯示，
 不會關閉應用程式。模式選項會直接說明結果：**保持原圖外觀（Embed）**適合照片、截圖與一般圖片；
 **轉成向量路徑（Vectorize）**適合 Logo、Icon、插圖與高對比線稿。GUI 支援正體中文、English、日文，
 並提供以下轉換設定：
 
-- 選擇 `embed` 或 `vectorize` 模式；前者會把點陣資料嵌入 SVG 的 `<image>`，後者會把影像描繪成
-  SVG 的 `<path>`。
+- 選擇 `embed` 或 `vectorize` 模式。
 - 選擇輸出資料夾、是否覆寫既有 SVG，以及是否遞迴處理子資料夾。
 - 需要時展開**進階設定**，設定 embed 的縮放、JPEG 品質、PNG 壓縮、PNG 最佳化，以及常用的
   vectorize 選項。GUI 會在原處說明 px 尺寸、JPEG 品質（1–95）、PNG 壓縮（0–9）與 VTracer
   控制項；數值欄位留白會使用後端預設值。
 
-轉換後，結果區會說明批次是完成、略過、部分失敗或取消，並顯示已轉換／略過／失敗數量；有 metrics
+轉換後，結果區會說明批次是完成、略過、部分失敗或取消，並顯示已轉換／略過／失敗數量；有大小統計
 時也會顯示來源與 SVG 大小、輸出位置，並提供**開啟輸出資料夾**與**轉換其他圖片**操作。
 
 透過 Python 安裝時，和命令列與 Python API 一樣，`vectorize` 模式需要安裝選用的
@@ -301,14 +300,14 @@ python -m pip install "svgconverter[preview,vectorize]"
 
 比較視窗會並排顯示來源與 SVG 渲染結果，附上實際尺寸及來源／SVG byte 大小。
 縮圖每邊最多 360 像素，顯示的 byte 大小則是完整轉換結果。
-預覽會擷取按下按鈕當下的 Embed 或 Vectorize 設定，在獨立處理程序執行，避免原生描圖與渲染
+預覽使用按下按鈕當下的 Embed 或 Vectorize 設定，在獨立的子程序執行，避免原生描圖與渲染
 阻塞介面；調整設定後須再次按下預覽。
 
 預覽只寫入私有暫存資料夾，顯示比較前就會清除，不使用最終輸出路徑或覆寫設定。
 取消會終止預覽子程序；關閉應用程式會等待子程序結束並清除暫存檔案。
 缺少 renderer 或 VTracer 時會顯示安裝指令。Windows 獨立版會包含預覽 renderer。
 
-動態影像以代表性的第一幀顯示，不預覽動畫時間資訊；一般轉換政策仍適用。
+動態影像只顯示第一個影格，不播放動畫；實際轉換規則不變。
 來源縮圖會遵循 EXIF 方向。由於 resvg 不處理嵌入 JPEG 的 EXIF 方向，也無法解碼所有
 支援的點陣格式，Embed 預覽會將**轉換後實際嵌入的點陣資料**在記憶體轉成 PNG 再渲染。
 此步驟保留選定的縮放與壓縮結果，不修改產生的 SVG 或回報的 byte 大小。
@@ -322,12 +321,12 @@ python -m svgconverter.preview_cli logo.png --output preview.png --mode vectoriz
 SVGConverter.exe --preview logo.png --output preview.png --mode vectorize
 ```
 
-預覽匯出要求尚未存在的 `.png` 目的檔案，保留既有檔案，並且不儲存或取代來源的最終 SVG。
+預覽匯出的 `.png` 必須是新檔案，不會覆蓋既有檔案，也不會寫入或取代正式輸出的 SVG。
 此指令使用所選模式的預設轉換設定；省略 `--mode vectorize` 即為 Embed。
 若 wrapper 會傳入不受信任的路徑，可加上 `--allowed-root ./workspace`，在預覽或建立輸出前
 限制來源與匯出 PNG 的位置，也會檢查解析後的 symlink。一般本機選取路徑可維持不指定。
 
-支援此功能的 release 中，Windows 使用者可從 GitHub Release 頁面下載獨立的
+Windows 使用者可從 GitHub Release 頁面下載獨立的
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset，內含 VTracer 後端，可直接使用 Embed
 與 Vectorize，不需要自行安裝 Python。自動化轉換時，可在 CLI 選項前加上 `--cli`，例如：
 
@@ -345,13 +344,3 @@ Linux 與 macOS 使用者請使用上述 Python 安裝方式。目前暫不提�
 ## 貢獻與授權
 
 本機檢查與提交格式請見 [CONTRIBUTING.md](CONTRIBUTING.md)。本專案採用 [MIT License](LICENSE)。
-
-### 向量 SVG 壓縮
-
-使用 `svgconverter logo.png --mode vectorize --optimize-svg`，或在 Python API 傳入
-`VectorizeOptions(optimize_svg=True)`。這個選用功能只刪除 XML 縮排與路徑指令旁多餘的空白，
-不會四捨五入座標、更動描繪參數或改變有意義的文字。僅保留較小的結果，大小統計採最終 bytes；
-轉換或最佳化失敗時會保留既有 SVG。預設不啟用，與 Embed 的點陣最佳化分開。
-
-VTracer 本身的標記已相當精簡，因此縮減幅度有限；實測大小與渲染比對見
-[評估文件](docs/svg-optimization.md)。

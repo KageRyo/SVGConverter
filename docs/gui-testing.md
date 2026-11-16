@@ -1,9 +1,9 @@
 # GUI coverage and native tests
 
-GUI coverage is tracked separately from the core package gate. The existing
-`pyproject.toml` coverage settings still exclude `gui.py` and require 85% for the
-core. SonarQube keeps its existing GUI coverage exclusion and core `coverage.xml`
-input. The dedicated **GUI coverage baseline** CI job uses `.coveragerc-gui` to
+GUI coverage is tracked separately from the core package gate.
+`pyproject.toml` excludes `gui.py` from core coverage and requires 85%. SonarQube
+also excludes the GUI from coverage and reads the core `coverage.xml`. The
+dedicated **GUI coverage baseline** CI job uses `.coveragerc-gui` to
 include `gui.py`, measure branches, and require 80% combined statement/branch
 coverage. It does not replace or lower the core gate.
 
@@ -30,10 +30,10 @@ SVGCONVERTER_NATIVE_GUI=1 xvfb-run -a pytest \
 
 On an existing desktop display, omit `xvfb-run -a`. The explicit environment flag
 opts into native tests; ordinary headless pytest runs skip them and keep running
-the GUI unit tests. The separate job runs the full suite so native preview/drop
-tests are included as the interface grows. VTracer, the preview renderer and
-Tk drag-and-drop dependencies are installed for that job; normal core tests keep
-their existing dependency policy.
+the GUI unit tests. The separate job runs the full suite, so it includes the
+native preview and drag-and-drop tests. VTracer, the preview renderer and Tk
+drag-and-drop dependencies are installed for that job; other test jobs keep their
+own dependency setup.
 
 The console report lists missing lines and branch arcs. `coverage-gui.xml` and
 `htmlcov-gui/` are uploaded as the `gui-coverage` artifact for 14 days, including
@@ -77,4 +77,4 @@ version, including some local Tcl/Tk 9 installations. Its supported-environment
 check and fallback should be assessed separately; a local run without that backend
 cannot establish the same integration coverage as the CI runtime. Preview
 rendering/backend failures, cancellation/closing behavior, and optional backend
-availability are covered by their focused tests as those features are included.
+availability are covered by their own focused tests.

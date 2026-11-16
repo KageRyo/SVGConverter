@@ -47,5 +47,4 @@ Measured with VTracer 0.6.15 and resvg-py 0.5.0:
 
 These small fixtures demonstrate fidelity, not a universal compression ratio.
 Most large output size comes from tracing detail; compaction leaves that detail
-unchanged. The default remains off and no GUI setting is required for this
-limited advanced option.
+unchanged. It is off by default and has no GUI setting.

@@ -35,14 +35,6 @@ Raster image
 | Create editable paths from logos, icons, or line art | `vectorize` | VTracer-generated SVG paths; the result depends on tracing options and input complexity |
 | Need both faithful and path-based output | Run both modes | They produce different representations; `embed` is not a substitute for vectorization |
 
-### Representative inputs
-
-| Input | `embed` | `vectorize` | Suggested choice |
-| --- | --- | --- | --- |
-| Photograph | Faithful pixels; size follows the source raster plus SVG/Base64 overhead | May become larger and stylized | `embed` |
-| Logo or icon | Faithful raster appearance | Often a good path candidate; size depends on tracing settings | `vectorize` when editable paths are needed |
-| High-contrast line art | Exact raster appearance | Usually a good path candidate | Choose based on fidelity versus editability |
-
 ## Conversion modes
 
 - **`embed`** (default) places the original raster bytes in an SVG `<image>`
@@ -99,7 +91,7 @@ rules as batch conversion. An existing output is skipped with exit code 0;
 selects an explicit filename for one input file and cannot be combined with
 `--output-dir`.
 
-Convert all supported images immediately inside a directory:
+Convert supported images directly inside a directory (not subfolders):
 
 ```bash
 svgconverter ./images --output-dir ./svg-output
@@ -128,8 +120,7 @@ mode requires the optional `vectorize` extra.
 When a wrapper passes paths from an untrusted user or agent, add
 `--allowed-root ./workspace` to restrict resolved input and output paths to that
 directory. Existing symlinks that resolve outside the boundary are rejected.
-Without this option, the local CLI keeps its normal ability to access
-user-selected filesystem locations.
+Without it, the CLI can read and write any path you give it.
 
 ### JSON reports for automation
 
@@ -146,8 +137,8 @@ shell automation example](docs/json-reports.md) for compatibility and error rule
 
 ### Embed optimization
 
-Embed mode preserves the source raster bytes by default. Opt in to resizing or
-re-encoding only when a smaller raster payload is worth the quality trade-off:
+Embed mode preserves the source raster bytes by default. Resize or re-encode
+only when a smaller file is worth some loss in quality:
 
 ```bash
 svgconverter photo.jpg --max-width 1600 --jpeg-quality 82
@@ -165,7 +156,8 @@ Animated WebP and APNG retain their original bytes, including frames and timing,
 when no raster changes are needed. Resizing either format, or applying PNG
 compression/optimization to APNG, raises `ConversionError` instead of silently
 discarding animation. Remove those options to embed the animation unchanged.
-Larger size limits and options for other formats leave the bytes unchanged.
+A size limit larger than the image, or an option meant for another format, also
+leaves the bytes unchanged.
 In a batch, an unsupported animated conversion is reported as a per-file failure
 and remaining images continue; the CLI returns exit code 1 and the GUI shows the
 failure details. Animation playback depends on the SVG viewer.
@@ -197,6 +189,19 @@ Unset numeric settings use VTracer's defaults. `default` is exactly
 override a preset, including zero values and choices equal to the usual defaults.
 Tracing quality depends on the input; these presets do not promise exact shape
 recreation or smaller files. Inspect the result before relying on it.
+
+### Vector SVG compaction
+
+Use `svgconverter logo.png --mode vectorize --optimize-svg` or pass
+`VectorizeOptions(optimize_svg=True)` to the Python API. This opt-in removes
+redundant XML indentation and whitespace around path commands. It never rounds
+coordinates, changes tracing settings, or changes significant text. Output is
+kept only when smaller; metrics reflect the final bytes. Conversion/optimization
+failures leave existing SVGs intact. The default remains unoptimized.
+
+Reductions are modest for VTracer's already compact markup. See the
+[evaluation and rendering comparison](docs/svg-optimization.md) for measured
+examples and scope. This setting is separate from Embed raster optimization.
 
 ## Python API
 
@@ -256,8 +261,8 @@ Use `progress_callback` for each processed item; return `True` from
 names are its field names; `None` resets an optional numeric field to the backend
 default. Unknown preset names raise `ValueError` with the supported names.
 
-Without `overwrite=True`, a completed SVG is published with an atomic hard link
-so concurrent converters cannot replace each other's output. A collision raises
+Without `overwrite=True`, a completed SVG is written to its destination with an
+atomic hard link so concurrent converters cannot replace each other's output. A collision raises
 `OutputExistsError` and is recorded as a per-file batch failure. When hard links
 are unsupported, Windows uses non-replacing rename, Linux uses
 `renameat2(RENAME_NOREPLACE)`, and macOS uses `renamex_np(RENAME_EXCL)`. If neither
@@ -268,8 +273,8 @@ verified. With `overwrite=True`, atomic replacement is retained.
 For integrations that accept untrusted path values, pass `allowed_root` to
 `convert_file()`, `convert_file_with_metrics()`, `convert_directory()`,
 `convert_paths()`, or `SVGConverter`. The converter resolves paths and rejects
-inputs, outputs, and symlink escapes outside that directory. The default
-`allowed_root=None` preserves the local library behavior.
+inputs, outputs, and symlink escapes outside that directory. The default,
+`allowed_root=None`, does not restrict paths.
 
 ## GUI
 
@@ -299,12 +304,13 @@ Tkinter installation and a compatible bundled tkdnd library for the OS and CPU.
 The current extension requires Tcl/Tk 8.x; Tcl/Tk 9 builds can fall back to the
 selection buttons. If the extra is missing or its native library cannot load,
 the GUI identifies drag and drop as unavailable and the file/folder pickers
-remain usable. Windows standalone builds include the extension; Linux/macOS
-Python installations depend on their local Tk/native-library compatibility.
+remain usable. Windows standalone builds include the extension. On Linux/macOS Python
+installations, drag and drop works only when the local Tk and native library are
+compatible.
 
 The legacy development command `python main.py` starts the same GUI. Select one
-or more files, or a folder, to convert with visible non-blocking progress and a
-converted/skipped/failed summary. You can cancel between files; any per-file
+or more files, or a folder, to convert. The window stays responsive and shows
+progress and a converted/skipped/failed summary. You can cancel between files; any per-file
 errors are shown after the batch without closing the application. The mode choices
 are described by their expected result: **Keep original appearance (Embed)** is
 recommended for photos, screenshots, and general images, while **Convert to vector
@@ -312,8 +318,7 @@ paths (Vectorize)** is recommended for logos, icons, illustrations, and
 high-contrast line art. The GUI offers Traditional Chinese, English, and Japanese,
 plus the following conversion settings:
 
-- Select `embed` or `vectorize` mode; the first choice embeds raster data in an SVG
-  `<image>`, while the second traces the image into SVG `<path>` elements.
+- Select `embed` or `vectorize` mode.
 - Choose an output directory, overwrite existing SVG files, and optionally
   include nested folders.
 - Expand **Advanced settings** when needed to configure embed resizing, JPEG quality,
@@ -353,12 +358,11 @@ exit and for temporary files to be removed.
 Missing renderer or VTracer dependencies produce installation instructions.
 Windows standalone builds include the preview renderer.
 
-Animated inputs show a representative first frame, without animation timing;
-the normal conversion policy still applies. The source thumbnail respects EXIF
+Animated inputs show only their first frame; conversion itself is unchanged. The source thumbnail respects EXIF
 orientation. For Embed previews, the renderer receives an in-memory PNG version
 of the **converted embedded raster**, because resvg does not honor embedded JPEG
-EXIF orientation or decode every supported raster format. This rendering adapter
-preserves the selected resizing/compression results and never changes the
+EXIF orientation or decode every supported raster format. This step keeps
+the selected resizing/compression results and never changes the
 generated SVG or its reported byte size. Different SVG viewers may render small
 details differently.
 
@@ -377,7 +381,7 @@ Wrappers that supply untrusted paths can add `--allowed-root ./workspace` to
 confine both the source and exported PNG, including resolved symlinks, before
 preview work or output creation. Omit it for normal caller-selected local paths.
 
-For a supported release, Windows users can download the standalone
+Windows users can download the standalone
 `SVGConverter-vX.Y.Z-windows-x86_64.exe` asset from the GitHub Release page; it
 includes the VTracer backend for both Embed and Vectorize and does not require
 a local Python installation. For automated file conversion, prefix CLI options
@@ -399,16 +403,3 @@ limitations.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for local checks and commit conventions.
 This project is licensed under the [MIT License](LICENSE).
-
-### Vector SVG compaction
-
-Use `svgconverter logo.png --mode vectorize --optimize-svg` or pass
-`VectorizeOptions(optimize_svg=True)` to the Python API. This opt-in removes
-redundant XML indentation and whitespace around path commands. It never rounds
-coordinates, changes tracing settings, or changes significant text. Output is
-kept only when smaller; metrics reflect the final bytes. Conversion/optimization
-failures leave existing SVGs intact. The default remains unoptimized.
-
-Reductions are modest for VTracer's already compact markup. See the
-[evaluation and rendering comparison](docs/svg-optimization.md) for measured
-examples and scope. This setting is separate from Embed raster optimization.

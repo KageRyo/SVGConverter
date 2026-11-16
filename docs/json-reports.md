@@ -48,7 +48,7 @@ Byte sizes are nonnegative integers. `embedded_raster_bytes` is null for
 vectorized items and for totals with no embedded rasters. Empty, entirely skipped,
 and entirely failed batches report zero input/SVG bytes, empty success arrays,
 and the appropriate counts. Unsupported extensions discovered in a directory
-are ignored by the existing batch policy and are not counted as skips.
+are ignored, as in normal batch conversion, and are not counted as skips.
 
 A corrupt single file appears in `failed`, just like a corrupt batch item.
 Failures that prevent planning a batch, such as a missing input directory or an
@@ -70,8 +70,8 @@ human-readable and may change; automation should use the exit status and
 The CLI currently has no cancellation option; an external interruption such as
 Ctrl+C does not guarantee a completed JSON report.
 
-For a shell script using `jq`, inspect reports even when a batch partly fails,
-and preserve the converter's exit status:
+This `jq` script reads the report even when part of a batch fails, and keeps
+the converter's exit status:
 
 ```bash
 status=0
